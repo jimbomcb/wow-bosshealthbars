@@ -7,7 +7,8 @@ local defaultSettings = {
     profile = {
         ver = 1,
         barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
-        hideAnchorWhenLocked = false
+        hideAnchorWhenLocked = false,
+        growUp = false
     }
 }
 
@@ -91,8 +92,19 @@ local encounterMap = {
     [1120] = { npcs = { [1] = 15928, [2] = 15929, [3] = 15930 } }, -- Thadd
     [1121] = { npcs = { [1] = 16064, [2] = 16065, [3] = 30549, [4] = 16063 } }, -- FourHoursemen
 
-    -- Debug
-    [0] = { npcs = { [1] = 42859 } }, -- Debug encounter
+    -- Debug encounter
+    [0] = { 
+        npcs = {
+            [1] = {
+                id = 26316,
+                expireAfterDeath = 3.0, -- Optional: Remove the health bar for this unit n seconds after death
+                --priority = 25 -- Optional: Ordered low to high, uses npc array idx if no manual priority
+            },
+            [2] = {
+                id = 26291
+            }
+        } 
+    }, 
 }
 
 local function GetIDFromGuid(guid)
@@ -102,10 +114,10 @@ local function GetIDFromGuid(guid)
     return tonumber(npcID)
 end
 
-local function GetUnitNPCID(unitID)
+local function GetNPCInfo(unitID)
     local guid = UnitGUID(unitID)
-    if guid == nil then return nil end
-    return GetIDFromGuid(guid)
+    if guid == nil then return nil, nil end
+    return guid, GetIDFromGuid(guid)
 end
 
 function BossHealthBar:OnInitialize() 
@@ -136,13 +148,10 @@ function BossHealthBar:OnInitialize()
     self.baseFrame:SetPoint("CENTER")
     self:UpdateBarLockState()
 
-    self.encounterData = nil
-    self.encounterActve = false -- Is the encounter ongoing
-    self.encounterDeaths = {} -- Tracked NPCs that have died this encounter
+    self.encounterInfo = nil
+    self.encounterActive = false -- Is the encounter ongoing
     self.encounterSize = 25
-    self.activeDataSources = {} -- Map NPC to datasource UnitID
     self.barPool = {} -- Pool of active bars given widgets are never destroyed
-    self.activeBarMap = {} -- Current NPC to Frame mapping
 
     -- Context menu
 	self.contextMenu = CreateFrame("FRAME", nil, self.baseFrame, "UIDropDownMenuTemplate")
@@ -162,6 +171,11 @@ function BossHealthBar:CreateAnchor()
 	baseBar:SetWidth(220)
 	baseBar:SetHeight(22)
 
+    local tex = baseBar:CreateTexture();
+    tex:SetColorTexture(0, 0, 0, 1.0)
+    tex:SetAllPoints();
+    tex:SetAlpha(0.5);
+
 	local baseBarHealth = CreateFrame("StatusBar", nil, baseBar)
 	baseBarHealth:SetMinMaxValues(0,1)
 	baseBarHealth:SetValue(1.0)
@@ -179,7 +193,7 @@ function BossHealthBar:CreateAnchor()
     name:SetFont(temp_font, 12)
     name:SetShadowColor(0, 0, 0, 1)
     name:SetShadowOffset(-1, -1)
-    name:SetText("Boss Health Bar Anchor")
+    name:SetText("Boss Health Bar")
     return baseBar
 end
 
@@ -223,10 +237,7 @@ function BossHealthBar:OnDisable()
 end
 
 function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficultyId, groupSize)
-    print("BHB Dbg: Encounter " .. encounterId .. " name " .. encounterName .. " diff " .. difficultyId .. " size " .. groupSize)
-
-    -- Todo: Clear state if self.activeEncounter is not nil
-    -- Todo: Track encounter active state, detect encounter end (separate from ENCOUNTER_END which can be missed if releasing early)
+    --print("BHB Dbg: Encounter " .. encounterId .. " name " .. encounterName .. " diff " .. difficultyId .. " size " .. groupSize)
 
     local encounterData = encounterMap[encounterId];
     if encounterData == nil then
@@ -240,7 +251,7 @@ end
 
 function BossHealthBar:OnEncounterEnd(_, encounterId, encounterName, difficultyId, groupSize, success)
     if self.encounterActive then
-        self:EndActiveEncounter()
+        self:EndActiveEncounterDelayed()
     end
 end
 
@@ -258,6 +269,8 @@ function BossHealthBar:OnSlashCommand(input)
                 self.encounterSize = 25
                 self:InitForEncounter(encounterData)
             end
+        elseif cmd == "end" then
+            self:EndActiveEncounter()
         end
     else
         print("Unknown BHB command: " .. input)
@@ -280,7 +293,7 @@ end
 
 function BossHealthBar:UpdateAnchorVisibility()
     local isLocked = self.db.profile.barLockState ~= "UNLOCKED"
-    if (self.db.profile.hideAnchorWhenLocked and isLocked) or (next(self.activeBarMap) ~= nil) then
+    if (self.db.profile.hideAnchorWhenLocked and isLocked) or self:HasActiveBar() then
         self.anchorBar:Hide()
     else
         self.anchorBar:Show()
@@ -324,56 +337,69 @@ function BossHealthBar:InitForEncounter(encounterData)
     -- In the rare case that a new encounter starts while our old encounter has a pending shutdown, do cleanup
     if self.encounterActive then
         if self.endEncounterDelay ~= nil then self:CancelTimer(self.endEncounterDelay) end
-        self:EndActiveEncounterDelayed()
+        self:EndActiveEncounter()
     end
+
+    -- Reset all bars
+    for idx, bar in pairs(self.barPool) do
+        bar:Reset()
+    end 
 
     -- Hook onto CLEU for UNIT_KILLED
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnActiveEncounterCLEU")
 
     -- print("BHB New Encounter: " .. tostring(encounterData))
     self.encounterActive = true;
-    self.encounterData = encounterData
-    self.encounterDeaths = {}
-    self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 0.333) -- Tick at 3hz for hp check (todo: expose to settings)
-
-    -- Hide anchor
-    self.anchorBar:Hide()
-
-    self.activeBarMap = {}
-    self.npcUnitIDs = {}
+    self.encounterInfo = {
+        trackedIDs = {},
+        currentTargets = {},
+        trackedUnits = {}
+    }
 
     local npcIdx = 1
 
-    -- Get/create bars for current encounter NPCs
     while encounterData.npcs[npcIdx] ~= nil do
-        local npcId = encounterData.npcs[npcIdx]
+        local npcData = encounterData.npcs[npcIdx]
+        self.encounterInfo.trackedIDs[npcData.id] = npcData
 
-        local baseBar = self:GetBarByIndex(npcIdx, true)
-        baseBar:Reset()
-        baseBar:SetName(tostring(npcId), true)
-        baseBar:SetHealthFractionText(1.0, "Seeking...") -- TODO: Default HP value for different phases? 
+        -- If there's no specific priority, use the definition order 
+        if self.encounterInfo.trackedIDs[npcData.id].priority == nil then
+            self.encounterInfo.trackedIDs[npcData.id].priority = 0 - npcIdx
+        end
+
+        npcIdx = npcIdx + 1
+    end
+
+    self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 0.333) -- Tick at 3hz for hp check (todo: expose to settings)
+    self:TickActiveEncounter()
+    self:UpdateAnchorVisibility()
     
-        self.activeBarMap[npcId] = baseBar;
-        npcIdx = npcIdx + 1
-    end
+    -- Get/create bars for current encounter NPCs
+    --while encounterData.npcs[npcIdx] ~= nil do
+    --    local npcId = encounterData.npcs[npcIdx]
+--
+    --    local baseBar = self:GetBarByIndex(npcIdx, true)
+    --    baseBar:Reset()
+    --    baseBar:SetName(tostring(npcId), true)
+    --    baseBar:SetHealthFractionText(1.0, "Seeking...") -- TODO: Default HP value for different phases? 
+    --
+    --    self.activeBarMap[npcId] = baseBar;
+    --    npcIdx = npcIdx + 1
+    --end
 
-    local priorActiveBars = self.activeBars ~= nil and self.activeBars or 0
-    self.activeBars = npcIdx - 1
-
-    -- Clean up any remaining bars that might be active from prior encounters
-    while npcIdx <= priorActiveBars do
-        local cleanupBar = self:GetBarByIndex(npcIdx, false)
-        if cleanupBar ~= nil then cleanupBar:Hide() end
-        npcIdx = npcIdx + 1
-    end
+    --local priorActiveBars = self.activeBars ~= nil and self.activeBars or 0
+    --self.activeBars = npcIdx - 1
+--
+    ---- Clean up any remaining bars that might be active from prior encounters
+    --while npcIdx <= priorActiveBars do
+    --    local cleanupBar = self:GetBarByIndex(npcIdx, false)
+    --    if cleanupBar ~= nil then cleanupBar:Hide() end
+    --    npcIdx = npcIdx + 1
+    --end
 end
 
 function BossHealthBar:EndActiveEncounter()
-    self.endEncounterDelay = self:ScheduleTimer("EndActiveEncounterDelayed", 2.0)
-end
 
--- Delayed ending that gives a brief window for the CLEU UNIT_DEATH to be received, it often doesn't otherwise
-function BossHealthBar:EndActiveEncounterDelayed()
     self.endEncounterDelay = nil
     self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
@@ -385,119 +411,100 @@ function BossHealthBar:EndActiveEncounterDelayed()
     end
 end
 
+-- Delayed ending that gives a brief window for the CLEU UNIT_DEATH to be received, it often doesn't otherwise
+function BossHealthBar:EndActiveEncounterDelayed()
+    self.endEncounterDelay = self:ScheduleTimer("EndActiveEncounter", 2.0)
+end
+
+-- Filter UNIT_DIED to the individual rows for their specific behaviour
 function BossHealthBar:OnActiveEncounterCLEU() 
 	local ts, event, _, _, _, _, _, destGuid, _, _, _ = CombatLogGetCurrentEventInfo()
 	if event ~= "UNIT_DIED" then return end
-    local npcID = GetIDFromGuid(destGuid)
-    if npcID ~= nil then
-        self.encounterDeaths[npcID] = true
-        local widget = self.activeBarMap[npcID]
-        if widget ~= nil then widget:SetHealthFractionText(0.0, "DEAD") end
+    local trackedUnitBar = self.encounterInfo.trackedUnits[destGuid]
+    if trackedUnitBar ~= nil then
+        trackedUnitBar:OnDeath()
     end
 end
 
 function BossHealthBar:TickActiveEncounter()
-    -- Try and determine the status of our tracked NPC ids in the fewest operations possible.
-    local pastDataSources = self.activeDataSources
-    local dataSources = {}
+    -- Enumerate the targeted NPCs
+    local targetedUnits = {}
 
-    -- Determine which datasources we need to newly seek
-    local npcsToSeek = {}
-    for k, v in pairs(self.encounterData.npcs) do
-        if pastDataSources[v] == nil and self.encounterDeaths[v] == nil then
-            npcsToSeek[v] = true
-        end
+    local unitGuid = UnitGUID("target")
+    if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "target" end
+
+    unitGuid = GetNPCInfo("focus")
+    if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "focus" end
+
+    -- Iterate the n raid players targets
+    for i=1, self.encounterSize do
+        unitGuid = GetNPCInfo("raid" .. i .. "target")
+        if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "raid" .. i .. "target" end
     end
 
-    -- Try and carry over any data sources that are still targeting the unit without doing another scan
-    -- Any data sources that we don't yet have will be scanned below
-    for k, v in pairs(pastDataSources) do
-        if GetUnitNPCID(v) == k and self.encounterDeaths[v] == nil then
-            -- Still targeting the desired unit
-            dataSources[k] = v
-        end
-    end
+    -- Find desired NPCs to track from our target set
+    local foundNPCsOfInterest = {}
+    local hadBarInvalidation = false
+    for npcGuid, sourceUnitId in pairs(targetedUnits) do
+        local npcID = GetIDFromGuid(npcGuid)
+        if npcID ~= nil and self.encounterInfo.trackedIDs[npcID] ~= nil then
+            foundNPCsOfInterest[npcGuid] = npcID
 
-    -- Try find a datasource for any NPC that we don't yet have
-    if next(npcsToSeek) ~= nil then -- A lua object with no entries will return nil for next(obj)
-        -- Enumerate local target, focus & raid member targets
-        local remainingTargets = {}
-        for k, v in pairs(npcsToSeek) do remainingTargets[k] = v end
+            -- NPC currently targeted by unitID 'v' is an npc of interest
+            if self.encounterInfo.trackedUnits[npcGuid] == nil then
+                -- Newly tracked unit
+                -- Don't newly track a dead NPC
+                if not UnitIsDead(sourceUnitId) then
+                    local trackingSettings = self.encounterInfo.trackedIDs[npcID]
+                    local newBar = self:GetNewBar()
+                    newBar:Activate(npcGuid, sourceUnitId, trackingSettings)
+                    newBar:Show()
 
-        local foundUnitIds = {}
-        local testGuid = GetUnitNPCID("target")
-        --print("a " .. UnitGUID("target") .. " b " .. testGuid)
-        if testGuid ~= nil then
-            if foundUnitIds[testGuid] == nil then
-                foundUnitIds[testGuid] = "target"
-                remainingTargets[testGuid] = nil
-            end
-        end
-
-        testGuid = GetUnitNPCID("focus")
-        if testGuid ~= nil then
-            if foundUnitIds[testGuid] == nil then
-                foundUnitIds[testGuid] = "focus"
-                remainingTargets[testGuid] = nil
-            end
-        end
-
-        -- Iterate the n raid players targets
-        for i=1, self.encounterSize do
-            if next(remainingTargets) == 0 then print("early out!") break end
-
-            testGuid = GetUnitNPCID("raid" .. i .. "target")
-            if testGuid ~= nil and foundUnitIds[testGuid] == nil then
-                foundUnitIds[testGuid] = "raid" .. i .. "target"
-                remainingTargets[testGuid] = nil
-            end
-        end
-
-        -- Link the unitIDS targeting our desired NPC with the correct data source
-        for k, v in pairs(npcsToSeek) do
-            if foundUnitIds[k] ~= nil then
-                dataSources[k] = foundUnitIds[k]
-                break
+                    self.encounterInfo.trackedUnits[npcGuid] = newBar
+                    self:UpdateAnchorVisibility()
+                    hadBarInvalidation = true
+                end
+            else
+                -- Already tracked unit, update
+                self.encounterInfo.trackedUnits[npcGuid]:UpdateFrom(sourceUnitId)
             end
         end
     end
 
-    -- Toggle active states for data sources gained/lost
-    for k, v in pairs(self.encounterData.npcs) do
-        local npcIsDead = self.encounterDeaths[v] ~= nil
-        local npcWasPresent = pastDataSources[v] ~= nil
-        local npcIsPresent = dataSources[v] ~= nil
-        --print("ID"..v.." - Was " .. tostring(npcWasPresent) .. " Is " .. tostring(npcIsPresent))
-        if npcIsDead then
-            -- Noop
-        elseif (npcIsPresent and not npcWasPresent) then
-            local widget = self.activeBarMap[v]
-            if widget ~= nil then
-                widget:SetActive(true)
-            end
-        elseif (not npcIsPresent and npcWasPresent) then
-            local widget = self.activeBarMap[v]
-            if widget ~= nil then
-                widget:SetActive(false)
-            end
+    local expiredBars = {}
+    for npcGuid, npcBar in pairs(self.encounterInfo.trackedUnits) do
+        if npcBar:HasExpired() then
+            -- Bar expiration
+            npcBar:Reset()
+            expiredBars[npcGuid] = true
+            hadBarInvalidation = true
+        elseif foundNPCsOfInterest[npcGuid] == nil and npcBar:IsTracked() then
+            -- Signal tracking lost for anything that wasn't present in this scan
+            npcBar:LostTracking()
         end
     end
 
-    -- Update data for actively tracked NPCs
-    for k, v in pairs(dataSources) do
-        local widget = self.activeBarMap[k]
-        if widget ~= nil then
-            if not widget:HasName() and UnitName(v) ~= nil then
-                widget:SetName(UnitName(v), false)
-            end
-
-            local unitHealth = UnitHealth(v)
-            local unitHealthMax = UnitHealthMax(v)
-            widget:SetHealth(unitHealth, unitHealthMax)
+    if next(expiredBars) ~= nil then
+        -- todo: We've cleaned up bars, reorder
+        for npcGuid, _ in pairs(expiredBars) do
+            self.encounterInfo.trackedUnits[npcGuid] = nil
         end
+        
+        self:UpdateAnchorVisibility()
     end
 
-    self.activeDataSources = dataSources;
+    if hadBarInvalidation then
+        self:SortActiveBars()
+    end
+end
+
+function BossHealthBar:HasActiveBar()
+    for npcGuid, npcBar in pairs(self.encounterInfo.trackedUnits) do
+        if npcBar:IsActive() then
+            return true
+        end
+    end
+    return false
 end
 
 function BossHealthBar:GetBarByIndex(index, createIfMissing)
@@ -507,4 +514,35 @@ function BossHealthBar:GetBarByIndex(index, createIfMissing)
     baseBar:SetPoint("TOPLEFT", 0, (index - 1) * -22)
     self.barPool[index] = baseBar
     return baseBar
+end
+
+function BossHealthBar:GetNewBar()
+    local lastIdx = 0
+    for idx, bar in pairs(self.barPool) do
+        if not bar:IsActive() then return bar end
+        lastIdx = idx
+    end 
+
+    local baseBar =_G.BHB.HealthBar:New(self.baseFrame)
+    self.barPool[lastIdx + 1] = baseBar
+    return baseBar
+end
+
+function BossHealthBar:SortActiveBars()
+    local activeBars = {}
+    local activeBarIdx = 1
+    for idx, bar in pairs(self.barPool) do
+        if bar:IsActive() then 
+            activeBars[activeBarIdx] = bar
+            activeBarIdx = activeBarIdx + 1
+        end
+    end 
+
+    table.sort(activeBars, function(a,b) 
+        return a:GetPriority() > b:GetPriority()
+    end)
+
+    for k, v in ipairs(activeBars) do 
+        v:SetPoint("TOPLEFT", 0, (k - 1) * -22)
+    end
 end
