@@ -55,7 +55,8 @@ function prototype:Reset()
 	self.hasName = false
 	self.isTracked = false
 	self.unitDead = false
-	self.expiryTime = nil
+	self.expiryTime = {}
+	self.deactivateTime = nil
 	self:Hide()
 
 	UpdateBarColor(self)
@@ -114,9 +115,16 @@ function prototype:UpdateFrom(unitId)
 
 	self.targetSourceUnitId = unitId
 	self.isTracked = true
+	self:CancelCleanup("lost")
 
-	if not self.unitDead and UnitIsDead(unitId) then
+	local unitDead = UnitIsDead(unitId)
+	if not self.unitDead and unitDead then
+		-- Died (but we somehow missed UNIT_DEATH)
 		self:OnDeath()
+	elseif self.unitDead and not unitDead then
+		-- Revived?
+		self.unitDead = false
+		self:CancelCleanup("death")
 	end
 
 	if not self.unitDead then
@@ -131,7 +139,12 @@ end
 
 function prototype:LostTracking()
 	self.isTracked = false
+	self.deactivateTime = GetTime()
 	UpdateBarColor(self)
+
+	if self.trackingSettings.expireAfterTrackingLoss ~= nil then
+		self:ScheduleCleanup("lost", self.trackingSettings.expireAfterTrackingLoss)
+	end
 end
 
 function prototype:OnDeath()
@@ -140,12 +153,29 @@ function prototype:OnDeath()
 
 	-- Some units should clean up their bar n seconds after death
 	if self.trackingSettings.expireAfterDeath ~= nil then
-		self.expiryTime = GetTime() + self.trackingSettings.expireAfterDeath
+		self:ScheduleCleanup("death", self.trackingSettings.expireAfterDeath)
 	end
 end
 
+function prototype:ScheduleCleanup(key, seconds)
+	local newExpireTime = GetTime() + seconds
+	if self.expiryTime[key] == nil or newExpireTime < self.expiryTime[key] then
+		self.expiryTime[key] = newExpireTime -- New time or sooner than prior
+	end
+end
+
+function prototype:CancelCleanup(key)
+	self.expiryTime[key] = nil
+end
+
 function prototype:HasExpired()
-	return self.expiryTime ~= nil and GetTime() > self.expiryTime
+	for k, v in pairs(self.expiryTime) do
+		if v ~= nil and GetTime() > v then
+			-- Hit an expiry
+			return true
+		end
+	end
+	return false
 end
 
 function prototype:GetPriority()
