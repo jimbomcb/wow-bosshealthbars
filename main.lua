@@ -8,7 +8,8 @@ local defaultSettings = {
 		ver = 1,
 		barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
 		hideAnchorWhenLocked = false,
-		growUp = false
+		growUp = false,
+		setInitialPos = false
 	}
 }
 
@@ -163,8 +164,15 @@ function BossHealthBar:OnInitialize()
 	self.baseFrame:SetWidth(220)
 	self.baseFrame:SetHeight(22)
 	self.baseFrame:SetClampedToScreen(true)
-	self.baseFrame:SetPoint("CENTER")
+	self.baseFrame:SetMovable(true)
+	self.baseFrame:SetUserPlaced(true)
+
 	self:UpdateBarLockState()
+
+	if not self.db.profile.setInitialPos then
+		self.baseFrame:SetPoint("TOP", 0, -100)
+		self.db.profile.setInitialPos = true
+	end
 
 	self.encounterInfo = nil
 	self.encounterActive = false -- Is the encounter ongoing
@@ -183,6 +191,7 @@ function BossHealthBar:OnInitialize()
 	-- Anchor bar
 	self.anchorBar = self:CreateAnchor()
 	self.anchorBar:SetPoint("TOPLEFT", 0, 0)
+	BossHealthBar:UpdateAnchorVisibility()
 end
 
 function BossHealthBar:CreateAnchor()
@@ -221,17 +230,19 @@ function BossHealthBar:UpdateBarLockState()
 	local lockClickthrough = self.db.profile.barLockState == "LOCKED_CLICKTHROUGH"
 
 	if lockMovement then
-		self.baseFrame:SetMovable(false)
+		--self.baseFrame:SetMovable(false)
 		self.baseFrame:EnableMouse(false)
 		self.baseFrame:SetScript("OnDragStart", nil);
 		self.baseFrame:SetScript("OnDragStop", nil);
 		self.baseFrame:SetScript("OnMouseUp", nil);
 	else
-		self.baseFrame:SetMovable(true)
+		--self.baseFrame:SetMovable(true)
 		self.baseFrame:EnableMouse(true)
 		self.baseFrame:RegisterForDrag("LeftButton")
 		self.baseFrame:SetScript("OnDragStart", self.baseFrame.StartMoving);
-		self.baseFrame:SetScript("OnDragStop", self.baseFrame.StopMovingOrSizing);
+		self.baseFrame:SetScript("OnDragStop", function()
+			self.baseFrame:StopMovingOrSizing()
+		end);
 	end
 
 	if lockClickthrough then
