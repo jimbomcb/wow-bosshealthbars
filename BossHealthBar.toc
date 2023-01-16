@@ -1,0 +1,14 @@
+## Interface: 30400
+## Version: v1.0.0
+## Title: Boss Health Bar (WOTLK)
+## Notes: On-screen health bars for encounter bosses
+## Author: Talamah
+## SavedVariables: BossHealthBar
+## OptionalDeps: Ace3
+
+# Ace libs
+embeds.xml
+
+# Main files
+main.lua
+healthbar.lua
