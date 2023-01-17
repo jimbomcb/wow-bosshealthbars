@@ -116,7 +116,7 @@ local encounterMap = {
 	[1118] = { npcs = { [1] = { id = 16028 } } }, -- Patch
 	[1119] = { npcs = { [1] = { id = 15989 } } }, -- Sapph
 	[1120] = { npcs = { [1] = { id = 15928 }, [2] = { id = 15929, expireAfterDeath = 8.0 }, [3] = { id = 15930, expireAfterDeath = 8.0 } } }, -- Thadd
-	[1121] = { npcs = { [1] = { id = 16064 }, [2] = { id = 16065 }, [3] = { id = 30549 }, [4] = { id = 16063 } } }, -- FourHoursemen
+	[1121] = { npcs = { [1] = { id = 16064 }, [2] = { id = 30549 }, [3] = { id = 16065 }, [4] = { id = 16063 } } }, -- FourHoursemen: FrontLeft, FrontRight, BackLeft, BackRight
 
 	-- Debug encounter
 	[0] = {
