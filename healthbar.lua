@@ -222,6 +222,6 @@ function UpdateBarColor(element)
 		local r, g, b = element.healthFrac > 0.5 and ((1.0 - element.healthFrac) * 2.0) or 1.0, element.healthFrac > 0.5 and 1.0 or (element.healthFrac * 2.0), 0.0
 		element.hpbar:SetStatusBarColor(r, g, b)
 	else
-		element.hpbar:SetStatusBarColor(0.8, 0.8, 0.8)
+		element.hpbar:SetStatusBarColor(0.75, 0.75, 0.75) -- TODO: Expose to settings
 	end
 end

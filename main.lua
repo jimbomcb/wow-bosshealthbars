@@ -198,7 +198,13 @@ function BossHealthBar:OnInitialize()
 	self:UpdateBarLockState()
 	self:RestorePosition() -- Restore saved position
 
-	self.encounterInfo = nil
+	self.currentStatus = "Waiting for encounter..."
+	self.statusColorR = 0; self.statusColorG = 1; self.statusColorB = 0; self.statusColorA = 1;
+	self.encounterInfo = {
+		trackedIDs = {},
+		currentTargets = {},
+		trackedUnits = {}
+	}
 	self.encounterActive = false -- Is the encounter ongoing
 	self.encounterSize = 25
 	self.npcCount = {}
@@ -216,12 +222,15 @@ function BossHealthBar:OnInitialize()
 	-- Anchor bar
 	self.anchorBar = self:CreateAnchor()
 	self.anchorBar:SetPoint("TOPLEFT", 0, 0)
+
 	BossHealthBar:UpdateAnchorVisibility()
 end
 
 function BossHealthBar:CreateAnchor()
+	local barWidth = 220
+
 	local baseBar = CreateFrame("Frame", "BossHealthBarBase", self.baseFrame)
-	baseBar:SetWidth(220)
+	baseBar:SetWidth(barWidth)
 	baseBar:SetHeight(22)
 
 	local tex = baseBar:CreateTexture();
@@ -235,7 +244,8 @@ function BossHealthBar:CreateAnchor()
 	baseBarHealth:SetPoint("TOPLEFT",1,-1)
 	baseBarHealth:SetPoint("BOTTOMRIGHT",-1,1)
 	baseBarHealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar");
-	baseBarHealth:SetStatusBarColor(0, 1, 0, 1)
+	baseBarHealth:SetStatusBarColor(self.statusColorR, self.statusColorG, self.statusColorB, self.statusColorA)
+	baseBar.healthBar = baseBarHealth
 
 	local overlay = CreateFrame("Frame", nil, baseBarHealth)
 	overlay:SetAllPoints(true)
@@ -247,6 +257,19 @@ function BossHealthBar:CreateAnchor()
 	name:SetShadowColor(0, 0, 0, 1)
 	name:SetShadowOffset(-1, -1)
 	name:SetText("Boss Health Bar")
+
+	local status = overlay:CreateFontString(nil, "OVERLAY")
+	status:SetPoint("TOPLEFT", barWidth - 84, 0)
+	status:SetPoint("BOTTOMRIGHT", -4, 0)
+	status:SetFont(temp_font, 8, "OUTLINE")
+	status:SetNonSpaceWrap(true)
+	status:SetShadowColor(0, 0, 0, 1)
+	status:SetShadowOffset(-1, -1)
+	status:SetJustifyH("RIGHT")
+	status:SetJustifyV("MIDDLE")
+	status:SetText(self.currentStatus)
+	baseBar.statusText = status
+
 	return baseBar
 end
 
@@ -317,7 +340,9 @@ function BossHealthBar:OnEncounterEnd(_, encounterId, encounterName, difficultyI
 end
 
 function BossHealthBar:OnSlashCommand(input)
-	if string.sub(input, 1, 5) == "debug" then
+	if input == "settings" or input == "options" then
+		LibStub("AceConfigDialog-3.0"):Open("BossHealthBar")
+	elseif string.sub(input, 1, 5) == "debug" then
 		local _, cmd, param1, param2 = strsplit(" ", input)
 		if cmd == "start" then
 			local encounterId = tonumber(param1)
@@ -330,8 +355,9 @@ function BossHealthBar:OnSlashCommand(input)
 				self.encounterSize = 25
 				self:InitForEncounter(encounterData)
 			end
-		elseif cmd == "end" then
+		elseif cmd == "end" or cmd == "stop" then
 			self:EndActiveEncounter()
+			print("Encounter ended")
 		end
 	else
 		print("Unknown BHB command: " .. input)
@@ -393,8 +419,20 @@ function BossHealthBar:RestorePosition()
 end
 
 function BossHealthBar:UpdateAnchorVisibility()
-	local isLocked = self.db.profile.barLockState ~= "UNLOCKED"
-	if (self.db.profile.hideAnchorWhenLocked and isLocked) or self:HasActiveBar() then
+	-- Always hide anchor when there's active encounter bars
+	if self:HasActiveBar() then
+		self.anchorBar:Hide()
+		return
+	end
+
+	-- Always show if there's no active encounter bars but we're in an encounter
+	if self.encounterActive then
+		self.anchorBar:Show()
+		return
+	end
+
+	-- Not in an encounter, so hide when locked if desired, otherwise show
+	if self.db.profile.barLockState ~= "UNLOCKED" and self.db.profile.hideAnchorWhenLocked then
 		self.anchorBar:Hide()
 	else
 		self.anchorBar:Show()
@@ -461,6 +499,8 @@ function BossHealthBar:InitForEncounter(encounterData)
 	}
 	self.npcCount = {}
 
+	self:UpdateStatus("Seeking targets...", 0.5, 0.5, 0.5, 1.0)
+
 	local npcIdx = 1
 
 	while encounterData.npcs[npcIdx] ~= nil do
@@ -475,13 +515,12 @@ function BossHealthBar:InitForEncounter(encounterData)
 		npcIdx = npcIdx + 1
 	end
 
-	self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 0.333) -- Tick at 3hz for hp check (todo: expose to settings)
+	self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 0.25) -- Tick at 4hz for hp check (todo: expose to settings)
 	self:TickActiveEncounter()
 	self:UpdateAnchorVisibility()
 end
 
 function BossHealthBar:EndActiveEncounter()
-
 	self.endEncounterDelay = nil
 
 	if self.boundCL then
@@ -490,10 +529,19 @@ function BossHealthBar:EndActiveEncounter()
 	end
 
 	self.encounterActive = false
+	self:UpdateStatus("Waiting for encounter...", 0, 1, 0, 1)
+	self:UpdateAnchorVisibility()
 
 	if self.encounterTick ~= nil then
 		self:CancelTimer(self.encounterTick)
 		self.encounterTick = nil
+	end
+
+	-- Clear the tracked state of any still tracked bars
+	for _, npcBar in pairs(self.encounterInfo.trackedUnits) do
+		if not npcBar:HasExpired() and npcBar:IsTracked() then
+			npcBar:LostTracking()
+		end
 	end
 end
 
@@ -513,7 +561,7 @@ function BossHealthBar:OnActiveEncounterCLEU()
 end
 
 function BossHealthBar:TickActiveEncounter()
-	-- Enumerate the targeted NPCs
+	-- Enumerate the targeted, focused, mouseover'd, raidtargeted NPCs
 	local targetedUnits = {}
 
 	local unitGuid = UnitGUID("target")
@@ -521,6 +569,9 @@ function BossHealthBar:TickActiveEncounter()
 
 	unitGuid = GetNPCInfo("focus")
 	if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "focus" end
+
+	unitGuid = GetNPCInfo("mouseover")
+	if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "mouseover" end
 
 	-- Iterate the n raid players targets
 	for i=1, self.encounterSize do
@@ -592,7 +643,7 @@ function BossHealthBar:TickActiveEncounter()
 end
 
 function BossHealthBar:HasActiveBar()
-	if not self.encounterActive then return false end
+	--if not self.encounterActive then return false end -- Disabled, we don't invalidate this until the next encounter starts
 	for npcGuid, npcBar in pairs(self.encounterInfo.trackedUnits) do
 		if npcBar:IsActive() then
 			return true
@@ -633,5 +684,15 @@ function BossHealthBar:SortActiveBars()
 
 	for k, v in ipairs(activeBars) do 
 		v:SetPoint("TOPLEFT", 0, (k - 1) * (22 * (self.db.profile.growUp and 1 or -1)))
+	end
+end
+
+function BossHealthBar:UpdateStatus(msg, r, g, b, a)
+	self.currentStatus = msg
+	if self.anchorBar ~= nil then
+		self.anchorBar.statusText:SetText(msg)
+		if r ~= nil then
+			self.anchorBar.healthBar:SetStatusBarColor(r, g, b, a)
+		end
 	end
 end
