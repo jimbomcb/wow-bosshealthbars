@@ -47,11 +47,8 @@ local options = {
 				name = "Hide Anchor When Locked",
 				desc = "When the bar is locked (or locked click-through), should the anchor be hidden outside of encounters?",
 				type = "toggle",
-				set = function(info, val) 
-					BossHealthBar.db.profile.hideAnchorWhenLocked = val
-					BossHealthBar:UpdateAnchorVisibility()
-				end,
-				get = function(info) return BossHealthBar.db.profile.hideAnchorWhenLocked end
+				set = "SetHideAnchorWhenLocked",
+				get = "GetHideAnchorWhenLocked"
 			},
 			growUp = {
 				name = "Grow Up",
@@ -163,9 +160,9 @@ end
 function BossHealthBar:OnInitialize() 
 	-- Settings
 	self.db = LibStub("AceDB-3.0"):New("BossHealthBar", defaultSettings, true)
-	self.db.RegisterCallback(self, "OnProfileChanged", "RefreshConfig")
-	self.db.RegisterCallback(self, "OnProfileCopied", "RefreshConfig")
-	self.db.RegisterCallback(self, "OnProfileReset", "RefreshConfig")
+	self.db.RegisterCallback(self, "OnProfileChanged", function(db, newProfile) self:RefreshConfig("change") end)
+	self.db.RegisterCallback(self, "OnProfileCopied", function(db, sourceProfile) self:RefreshConfig("copy") end)
+	self.db.RegisterCallback(self, "OnProfileReset", function(db) self:RefreshConfig("reset") end)
 
 	LibStub("AceConfig-3.0"):RegisterOptionsTable("BossHealthBar", options)
 	self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("BossHealthBar", "Boss Health Bars")
@@ -271,8 +268,13 @@ function BossHealthBar:UpdateBarLockState()
 	end
 end
 
-function BossHealthBar:RefreshConfig()
+function BossHealthBar:RefreshConfig(source)
 	self:RestorePosition()
+
+	-- TODO: Rethink how we apply settings given what needs to change switching profiles
+	self:SetBarLockState(nil, self:GetBarLockState())
+	self:SetGrowUp(nil, self:GetGrowUp())
+	self:SetHideAnchorWhenLocked(nil, self:GetHideAnchorWhenLocked())
 end
 
 function BossHealthBar:OnEnable()
@@ -345,6 +347,15 @@ end
 
 function BossHealthBar:GetGrowUp(info)
 	return self.db.profile.growUp
+end
+
+function BossHealthBar:SetHideAnchorWhenLocked(info, state)
+	BossHealthBar.db.profile.hideAnchorWhenLocked = state
+	BossHealthBar:UpdateAnchorVisibility()
+end
+
+function BossHealthBar:GetHideAnchorWhenLocked(info)
+	return BossHealthBar.db.profile.hideAnchorWhenLocked
 end
 
 function BossHealthBar:SavePosition()
