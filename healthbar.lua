@@ -56,7 +56,8 @@ function prototype:Reset()
 	self.unitDead = false
 	self.expiryTime = {}
     self.spawnIndex = 0
-    self.spawnTime = 0
+    --self.spawnTime = 0
+	self.uniqueId = 0
 	self:Hide()
 
 	UpdateBarColor(self)
@@ -111,11 +112,11 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
 	self.uniqueId = uniqueId
 
 	-- Track spawn time
-	local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
-    local spawnEpoch = GetServerTime() - (GetServerTime() % 2^23)
-    local spawnEpochOffset = bit.band(tonumber(string.sub(spawnUID, 5), 16), 0x7fffff)
-    self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
-    self.spawnTime = spawnEpoch + spawnEpochOffset
+	-- local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
+    -- local spawnEpoch = GetServerTime() - (GetServerTime() % 2^23)
+    -- local spawnEpochOffset = bit.band(tonumber(string.sub(spawnUID, 5), 16), 0x7fffff)
+    -- self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
+    -- self.spawnTime = spawnEpoch + spawnEpochOffset
 
 	local unitName = UnitName(sourceUnitId)
 	-- Disabled as I think this might cause more confusion than it's worth
@@ -208,8 +209,12 @@ function prototype:GetPriority()
 	return self.trackingSettings.priority
 end
 
-function prototype:GetSpawnTime()
+--[[function prototype:GetSpawnTime()
 	return self.spawnTime, self.spawnIndex
+end]]--
+
+function prototype:GetBarUID()
+	return self.uniqueId
 end
 
 function UpdateBarColor(element)

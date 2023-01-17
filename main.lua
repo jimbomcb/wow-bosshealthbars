@@ -541,9 +541,8 @@ function BossHealthBar:TickActiveEncounter()
 				-- Newly tracked unit
 				-- Don't newly track a dead NPC
 				if not UnitIsDead(sourceUnitId) then
-					-- Disabled until we need this functionality
-					--local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
-					--self.npcCount[npcID] = npcCount + 1
+					local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
+					self.npcCount[npcID] = npcCount + 1
 
 					--if npcCount == 2 then
 						-- TODO: This is the second instance of an NPC with the same ID, find the previous bar and append #1
@@ -551,7 +550,7 @@ function BossHealthBar:TickActiveEncounter()
 
 					local trackingSettings = self.encounterInfo.trackedIDs[npcID]
 					local newBar = self:GetNewBar()
-					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, 0)
+					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, npcCount)
 					newBar:Show()
 
 					self.encounterInfo.trackedUnits[npcGuid] = newBar
@@ -624,15 +623,12 @@ function BossHealthBar:SortActiveBars()
 		end
 	end 
 
-	table.sort(activeBars, function(a,b) 
+	table.sort(activeBars, function(a,b)
 		local prioA = a:GetPriority()
 		local prioB = b:GetPriority()
 		if prioA ~= prioB then return prioA > prioB end
-		-- Fall back to spawn time/index ordering 
-		local spawnTimeA, spawnIdxA = a:GetSpawnTime()
-		local spawnTimeB, spawnIdxB = b:GetSpawnTime()
-		if spawnTimeA ~= spawnIdxB then return spawnTimeA > spawnTimeB end
-		return spawnIdxA > spawnIdxB
+		-- Fall back to bar spawn order
+		return a:GetBarUID() < b:GetBarUID()
 	end)
 
 	for k, v in ipairs(activeBars) do 
