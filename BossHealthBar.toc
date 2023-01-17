@@ -1,4 +1,4 @@
-## Interface: 30400
+## Interface: 30401
 ## Version: v3
 ## Title: Boss Health Bar (WOTLK)
 ## Notes: On-screen health bars for WotLK Classic encounters
