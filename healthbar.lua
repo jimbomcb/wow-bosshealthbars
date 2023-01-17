@@ -30,16 +30,12 @@ function HealthBar:New(parent)
 
     local name = overlay:CreateFontString(nil, "OVERLAY")
     name:SetPoint("LEFT", 4, 0)
-    name:SetFont(temp_font, 12)
-    name:SetShadowColor(0, 0, 0, 1)
-    name:SetShadowOffset(-1, 1)
+    name:SetFont(temp_font, 12, "OUTLINE")
 	frame.bossname = name
 
     local hp = overlay:CreateFontString(nil, "OVERLAY")
     hp:SetPoint("RIGHT", -4, 0)
-    hp:SetFont(temp_font, 12)
-    hp:SetShadowColor(0, 0, 0, 1)
-    hp:SetShadowOffset(-1, 1)
+    hp:SetFont(temp_font, 12, "OUTLINE")
 	frame.hptext = hp
 
 	frame:Reset()

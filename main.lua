@@ -253,9 +253,7 @@ function BossHealthBar:CreateAnchor()
 
 	local name = overlay:CreateFontString(nil, "OVERLAY")
 	name:SetPoint("LEFT", 4, 0)
-	name:SetFont(temp_font, 12)
-	name:SetShadowColor(0, 0, 0, 1)
-	name:SetShadowOffset(-1, -1)
+	name:SetFont(temp_font, 12, "OUTLINE")
 	name:SetText("Boss Health Bar")
 
 	local status = overlay:CreateFontString(nil, "OVERLAY")
@@ -263,8 +261,6 @@ function BossHealthBar:CreateAnchor()
 	status:SetPoint("BOTTOMRIGHT", -4, 0)
 	status:SetFont(temp_font, 8, "OUTLINE")
 	status:SetNonSpaceWrap(true)
-	status:SetShadowColor(0, 0, 0, 1)
-	status:SetShadowOffset(-1, -1)
 	status:SetJustifyH("RIGHT")
 	status:SetJustifyV("MIDDLE")
 	status:SetText(self.currentStatus)
@@ -326,6 +322,7 @@ function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficult
 	local encounterData = encounterMap[encounterId];
 	if encounterData == nil then
 		-- No encounter data, no healthbar available
+		self:UpdateStatus("Unknown encounter #"..encounterId, 0.5, 0.5, 0.5, 1.0)
 		return
 	end
 
