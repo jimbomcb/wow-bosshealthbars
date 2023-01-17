@@ -71,7 +71,15 @@ end
 
 function prototype:SetHealth(unitHealth, unitMaxHealth)
 	local fraction = unitHealth / unitMaxHealth
-	self:SetHealthFractionText(fraction, tostring(math.floor(fraction * 100)) .. "%")
+
+	-- Increase decimal precision under 10%/1%
+	local precision = 0
+	if fraction < 0.01 then
+		precision = 2
+	elseif fraction < 0.1 then
+		precision = 1
+	end
+	self:SetHealthFractionText(fraction, format("%." .. precision .. "f%%", fraction * 100.0))
 end
 
 function prototype:SetHealthFractionText(fraction, text)

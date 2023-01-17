@@ -52,7 +52,7 @@ local options = {
 			},
 			growUp = {
 				name = "Grow Up",
-				desc = "Add new elements above the anchor instead of below",
+				desc = "Add new elements above the anchor instead of below when tracking multiple bosses",
 				type = "toggle",
 				set = "SetGrowUp",
 				get = "GetGrowUp"
@@ -77,12 +77,13 @@ local encounterMap = {
 	[749] = { npcs = { [1] = { id = 32930 }, [2] = { id = 32934 }, [3] = { id = 32933 } } }, -- Kologarn
 	[750] = { npcs = { [1] = { id = 33515 }, [2] = { id = 34035 } } }, -- Auriaya, Feral Defenders
 	[751] = { npcs = { [1] = { id = 32845 } } }, -- Hodir
-	[752] = { npcs = { [1] = { id = 32865 }, [2] = { id = 32872 }, [3] = { id = 32873 } } }, -- Thorim, Runic Colossus, Ancient Rune Giant
+	[752] = { npcs = { [1] = { id = 32865 }, [2] = { id = 32872, expireAfterDeath = 30.0 }, [3] = { id = 32873, expireAfterDeath = 30.0 } } }, -- Thorim, Runic Colossus, Ancient Rune Giant
 	[753] = { npcs = { [1] = { id = 32906 }, [2] = { id = 33203, expireAfterDeath = 30.0 }, [3] = { id = 33202, expireAfterDeath = 30.0 }, [4] = { id = 32919, expireAfterDeath = 30.0 }, [5] = { id = 32916, expireAfterDeath = 30.0 }, [6] = { id = 33228, expireAfterDeath = 5.0, expireAfterTrackingLoss = 15.0 } } }, -- Freya, Ancient Conservator, Ancient Water Spirit, Storm Lasher, Snap Lasher, Eonar's Gift
-	[754] = { npcs = { [1] = { id = 33432 }, [2] = { id = 33651 }, [3] = { id = 33670 } } }, -- Mimiron: Leviathan, Body, Head
+	[754] = { npcs = { [1] = { id = 33432, priority = 1 }, [2] = { id = 33651, priority = 2 }, [3] = { id = 33670, priority = 3 } } }, -- Mimiron: Leviathan, Body, Head
 	[755] = { npcs = { [1] = { id = 33271 }, [2] = { id = 33524, expireAfterDeath = 10.0 } } }, -- Vezax, Animus
-	[756] = { npcs = { [1] = { id = 33134, priority = -100 }, [2] = { id = 33288 }, [3] = { id = 33890 } } }, -- Yogg: Sara, Yogg, Brain
-	[757] = { npcs = { [1] = { id = 32871 } } }, -- Algalon
+	[756] = { npcs = { [1] = { id = 33134, priority = -100, expireAfterTrackingLoss = 30.0 }, [2] = { id = 33288 }, [3] = { id = 33890 } } }, -- Yogg: Sara, Yogg, Brain
+	[757] = { npcs = { [1] = { id = 32871 }, [2] = { id = 32955, expireAfterDeath = 10.0, expireAfterTrackingLoss = 10.0 } } }, -- Algalon, Collapsing Star
+
 
 	-- Retail IDs (for testing the addon ahead of Ulduar release):
 	[1132] = { npcs = { [1] = { id = 33113 } } }, -- Flame lev
@@ -93,12 +94,12 @@ local encounterMap = {
 	[1137] = { npcs = { [1] = { id = 32930 }, [2] = { id = 32934 }, [3] = { id = 32933 } } }, -- Kologarn
 	[1131] = { npcs = { [1] = { id = 33515 }, [2] = { id = 34035 } } }, -- Auriaya, Feral Defenders
 	[1135] = { npcs = { [1] = { id = 32845 } } }, -- Hodir
-	[1141] = { npcs = { [1] = { id = 32865 }, [2] = { id = 32872 }, [3] = { id = 32873 } } }, -- Thorim, Runic Colossus, Ancient Rune Giant
+	[1141] = { npcs = { [1] = { id = 32865 }, [2] = { id = 32872, expireAfterDeath = 30.0 }, [3] = { id = 32873, expireAfterDeath = 30.0 } } }, -- Thorim, Runic Colossus, Ancient Rune Giant
 	[1133] = { npcs = { [1] = { id = 32906 }, [2] = { id = 33203, expireAfterDeath = 30.0 }, [3] = { id = 33202, expireAfterDeath = 30.0 }, [4] = { id = 32919, expireAfterDeath = 30.0 }, [5] = { id = 32916, expireAfterDeath = 30.0 }, [6] = { id = 33228, expireAfterDeath = 5.0, expireAfterTrackingLoss = 15.0 } } }, -- Freya, Ancient Conservator, Ancient Water Spirit, Storm Lasher, Snap Lasher, Eonar's Gift
-	[1138] = { npcs = { [1] = { id = 33432 }, [2] = { id = 33651 }, [3] = { id = 33670 } } }, -- Mimiron: Leviathan, Body, Head
+	[1138] = { npcs = { [1] = { id = 33432, priority = 1 }, [2] = { id = 33651, priority = 2 }, [3] = { id = 33670, priority = 3 } } }, -- Mimiron: Leviathan, Body, Head
 	[1134] = { npcs = { [1] = { id = 33271 }, [2] = { id = 33524, expireAfterDeath = 10.0 } } }, -- Vezax, Animus
-	[1143] = { npcs = { [1] = { id = 33134, priority = -100 }, [2] = { id = 33288 }, [3] = { id = 33890 } } }, -- Yogg: Sara, Yogg, Brain
-	[1130] = { npcs = { [1] = { id = 32871 } } }, -- Algalon
+	[1143] = { npcs = { [1] = { id = 33134, priority = -100, expireAfterTrackingLoss = 30.0 }, [2] = { id = 33288 }, [3] = { id = 33890 } } }, -- Yogg: Sara, Yogg, Brain
+	[1130] = { npcs = { [1] = { id = 32871 }, [2] = { id = 32955, expireAfterDeath = 10.0, expireAfterTrackingLoss = 10.0 } } }, -- Algalon, Collapsing Star
 
 	-- Naxx
 	[1107] = { npcs = { [1] = { id = 15956 } } }, -- Anub
