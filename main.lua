@@ -143,6 +143,18 @@ local encounterMap = {
 			}
 		}
 	},
+	[2] = {
+		npcs = {
+			[1] = {
+				id = 29724,
+				expireAfterDeath = 3.0
+			},
+			[2] = {
+				id = 31139,
+				expireAfterTrackingLoss = 10.0
+			}
+		}
+	},
 }
 
 local function GetIDFromGuid(guid)
@@ -189,6 +201,7 @@ function BossHealthBar:OnInitialize()
 	self.encounterInfo = nil
 	self.encounterActive = false -- Is the encounter ongoing
 	self.encounterSize = 25
+	self.npcCount = {}
 	self.barPool = {} -- Pool of active bars given widgets are never destroyed
 	self.boundCL = false
 
@@ -446,6 +459,7 @@ function BossHealthBar:InitForEncounter(encounterData)
 		currentTargets = {},
 		trackedUnits = {}
 	}
+	self.npcCount = {}
 
 	local npcIdx = 1
 
@@ -527,9 +541,17 @@ function BossHealthBar:TickActiveEncounter()
 				-- Newly tracked unit
 				-- Don't newly track a dead NPC
 				if not UnitIsDead(sourceUnitId) then
+					-- Disabled until we need this functionality
+					--local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
+					--self.npcCount[npcID] = npcCount + 1
+
+					--if npcCount == 2 then
+						-- TODO: This is the second instance of an NPC with the same ID, find the previous bar and append #1
+					--end
+
 					local trackingSettings = self.encounterInfo.trackedIDs[npcID]
 					local newBar = self:GetNewBar()
-					newBar:Activate(npcGuid, sourceUnitId, trackingSettings)
+					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, 0)
 					newBar:Show()
 
 					self.encounterInfo.trackedUnits[npcGuid] = newBar

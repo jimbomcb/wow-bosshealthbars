@@ -103,11 +103,12 @@ function prototype:IsActive()
 end
 
 -- Captured an NPC of interest with the given Guid, currently targeted by sourceUnitId (may change)
-function prototype:Activate(npcGuid, sourceUnitId, trackingSettings)
+function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
 	self:SetActive(true)
 	self.targetGuid = npcGuid
 	self.isTracked = true
 	self.trackingSettings = trackingSettings
+	self.uniqueId = uniqueId
 
 	-- Track spawn time
 	local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
@@ -116,8 +117,21 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings)
     self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
     self.spawnTime = spawnEpoch + spawnEpochOffset
 
-	self.bossname:SetText(UnitName(sourceUnitId))
+	local unitName = UnitName(sourceUnitId)
+	-- Disabled as I think this might cause more confusion than it's worth
+	-- Because the # might not be identical between raid players, and someone calling "attack #3" would be different for different players
+	--[[if self.uniqueId > 1 then
+		self.bossname:SetText(format("%s #%d", unitName, self.uniqueId))
+	else
+		self.bossname:SetText(unitName)
+	end]]--
+	self.bossname:SetText(unitName)
+
 	self:UpdateFrom(sourceUnitId)
+end
+
+function prototype:AppendNameUID()
+	self.bossname:SetText(format("%s #%d", self.bossName:GetText(), self.uniqueId))
 end
 
 function prototype:UpdateFrom(unitId)
