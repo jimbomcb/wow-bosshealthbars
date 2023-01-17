@@ -50,13 +50,11 @@ end
 function prototype:Reset()
 	self.barActive = false
 	self.targetGuid = nil
-	self.targetSourceUnitId = nil
 	self.healthFrac = 1.0
 	self.hasName = false
 	self.isTracked = false
 	self.unitDead = false
 	self.expiryTime = {}
-	self.deactivateTime = nil
 	self:Hide()
 
 	UpdateBarColor(self)
@@ -98,7 +96,6 @@ end
 function prototype:Activate(npcGuid, sourceUnitId, trackingSettings)
 	self:SetActive(true)
 	self.targetGuid = npcGuid
-	self.targetSourceUnitId = sourceUnitId
 	self.isTracked = true
 	self.trackingSettings = trackingSettings
 
@@ -112,8 +109,7 @@ function prototype:UpdateFrom(unitId)
 		error("Mismatch, bar was for "..self.targetGuid.." but unit is targeting " .. UnitGUID(unitId))
 		return
 	end
-
-	self.targetSourceUnitId = unitId
+	
 	self.isTracked = true
 	self:CancelCleanup("lost")
 
@@ -139,7 +135,6 @@ end
 
 function prototype:LostTracking()
 	self.isTracked = false
-	self.deactivateTime = GetTime()
 	UpdateBarColor(self)
 
 	if self.trackingSettings.expireAfterTrackingLoss ~= nil then

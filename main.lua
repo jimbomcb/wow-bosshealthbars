@@ -8,8 +8,7 @@ local defaultSettings = {
 		ver = 1,
 		barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
 		hideAnchorWhenLocked = false,
-		growUp = false,
-		setInitialPos = false
+		growUp = false
 	}
 }
 
@@ -18,31 +17,52 @@ local options = {
 	handler = BossHealthBar,
 	type = "group",
 	args = {
-		barLockState = {
-			type = "select",
-			name = "Bar Lock",
-			desc = "How should the health bars respond to mouse input?",
-			values = {
-				UNLOCKED = "Unlocked",
-				LOCKED = "Locked",
-				LOCKED_CLICKTHROUGH = "Locked & Click-through"
+		moreoptions={
+		  name = "Bar Settings",
+		  type = "group",
+		  args={
+			desc = {
+				name = "Alter the look and feel of the boss health bars.",
+				type = "description",
+				order = 0,
 			},
-			sorting = {
-				[1] = "UNLOCKED",
-				[2] = "LOCKED",
-				[3] = "LOCKED_CLICKTHROUGH"
+			barLockState = {
+				type = "select",
+				name = "Bar Lock",
+				desc = "How should the Boss Health Bar panel respond to mouse input?",
+				values = {
+					UNLOCKED = "Unlocked",
+					LOCKED = "Locked",
+					LOCKED_CLICKTHROUGH = "Locked & Click-through"
+				},
+				sorting = {
+					[1] = "UNLOCKED",
+					[2] = "LOCKED",
+					[3] = "LOCKED_CLICKTHROUGH"
+				},
+				get = "GetBarLockState",
+				set = "SetBarLockState"
 			},
-			get = "GetBarLockState",
-			set = "SetBarLockState"
-		},
-		growUp = {
-			name = "Grow Up",
-			desc = "Add new elements above the anchor instead of below",
-			type = "toggle",
-			set = "SetGrowUp",
-			get = "GetGrowUp"
-		},
-	},
+			hideAnchorWhenLocked = {
+				name = "Hide Anchor When Locked",
+				desc = "When the bar is locked (or locked click-through), should the anchor be hidden outside of encounters?",
+				type = "toggle",
+				set = function(info, val) 
+					BossHealthBar.db.profile.hideAnchorWhenLocked = val
+					BossHealthBar:UpdateAnchorVisibility()
+				end,
+				get = function(info) return BossHealthBar.db.profile.hideAnchorWhenLocked end
+			},
+			growUp = {
+				name = "Grow Up",
+				desc = "Add new elements above the anchor instead of below",
+				type = "toggle",
+				set = "SetGrowUp",
+				get = "GetGrowUp"
+			},
+		  }
+		}
+	}
 }
 
 -- Map encounter ID to NPCs
@@ -141,7 +161,6 @@ local function GetNPCInfo(unitID)
 end
 
 function BossHealthBar:OnInitialize() 
-
 	-- Settings
 	self.db = LibStub("AceDB-3.0"):New("BossHealthBar", defaultSettings, true)
 	self.db.RegisterCallback(self, "OnProfileChanged", "RefreshConfig")
@@ -165,14 +184,9 @@ function BossHealthBar:OnInitialize()
 	self.baseFrame:SetHeight(22)
 	self.baseFrame:SetClampedToScreen(true)
 	self.baseFrame:SetMovable(true)
-	self.baseFrame:SetUserPlaced(true)
 
 	self:UpdateBarLockState()
-
-	if not self.db.profile.setInitialPos then
-		self.baseFrame:SetPoint("TOP", 0, -100)
-		self.db.profile.setInitialPos = true
-	end
+	self:RestorePosition() -- Restore saved position
 
 	self.encounterInfo = nil
 	self.encounterActive = false -- Is the encounter ongoing
@@ -242,6 +256,7 @@ function BossHealthBar:UpdateBarLockState()
 		self.baseFrame:SetScript("OnDragStart", self.baseFrame.StartMoving);
 		self.baseFrame:SetScript("OnDragStop", function()
 			self.baseFrame:StopMovingOrSizing()
+			BossHealthBar:SavePosition()
 		end);
 	end
 
@@ -257,7 +272,7 @@ function BossHealthBar:UpdateBarLockState()
 end
 
 function BossHealthBar:RefreshConfig()
-  -- would do some stuff here
+	self:RestorePosition()
 end
 
 function BossHealthBar:OnEnable()
@@ -330,6 +345,26 @@ end
 
 function BossHealthBar:GetGrowUp(info)
 	return self.db.profile.growUp
+end
+
+function BossHealthBar:SavePosition()
+	local point, relativeTo, relativePoint, xOfs, yOfs = self.baseFrame:GetPoint(1)
+	self.db.profile.hasPos = true
+	self.db.profile.rootPoint = point
+	self.db.profile.rootX = xOfs
+	self.db.profile.rootY = yOfs
+end
+
+function BossHealthBar:RestorePosition()
+	self.baseFrame:ClearAllPoints()
+
+	if self.db.profile.hasPos ~= nil and self.db.profile.hasPos then
+		self.baseFrame:SetPoint(self.db.profile.rootPoint, "UIParent", self.db.profile.rootX, self.db.profile.rootY)
+	else
+		-- Store initial position
+		self.baseFrame:SetPoint("TOP", 0, -100)
+		self:SavePosition()
+	end
 end
 
 function BossHealthBar:UpdateAnchorVisibility()
