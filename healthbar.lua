@@ -55,6 +55,8 @@ function prototype:Reset()
 	self.isTracked = false
 	self.unitDead = false
 	self.expiryTime = {}
+    self.spawnIndex = 0
+    self.spawnTime = 0
 	self:Hide()
 
 	UpdateBarColor(self)
@@ -106,6 +108,13 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings)
 	self.targetGuid = npcGuid
 	self.isTracked = true
 	self.trackingSettings = trackingSettings
+
+	-- Track spawn time
+	local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
+    local spawnEpoch = GetServerTime() - (GetServerTime() % 2^23)
+    local spawnEpochOffset = bit.band(tonumber(string.sub(spawnUID, 5), 16), 0x7fffff)
+    self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
+    self.spawnTime = spawnEpoch + spawnEpochOffset
 
 	self.bossname:SetText(UnitName(sourceUnitId))
 	self:UpdateFrom(sourceUnitId)
@@ -183,6 +192,10 @@ end
 
 function prototype:GetPriority()
 	return self.trackingSettings.priority
+end
+
+function prototype:GetSpawnTime()
+	return self.spawnTime, self.spawnIndex
 end
 
 function UpdateBarColor(element)

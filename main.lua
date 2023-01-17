@@ -603,7 +603,14 @@ function BossHealthBar:SortActiveBars()
 	end 
 
 	table.sort(activeBars, function(a,b) 
-		return a:GetPriority() > b:GetPriority()
+		local prioA = a:GetPriority()
+		local prioB = b:GetPriority()
+		if prioA ~= prioB then return prioA > prioB end
+		-- Fall back to spawn time/index ordering 
+		local spawnTimeA, spawnIdxA = a:GetSpawnTime()
+		local spawnTimeB, spawnIdxB = b:GetSpawnTime()
+		if spawnTimeA ~= spawnIdxB then return spawnTimeA > spawnTimeB end
+		return spawnIdxA > spawnIdxB
 	end)
 
 	for k, v in ipairs(activeBars) do 
