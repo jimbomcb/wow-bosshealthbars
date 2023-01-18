@@ -5,12 +5,12 @@ BHB.HealthBar = HealthBar
 
 local temp_font = "Fonts\\FRIZQT__.TTF" -- TODO: Expose to settings
 
-function HealthBar:New(parent)
+function HealthBar:New(parent, width, height)
 	local frame = CreateFrame("Frame", "BossHealthBar", parent)
 	for k,v in pairs(prototype) do frame[k] = v end -- Copy in prototype methods
 
-	frame:SetWidth(220)
-	frame:SetHeight(22)
+	frame:SetWidth(width)
+	frame:SetHeight(height)
 
     local tex = frame:CreateTexture();
     tex:SetColorTexture(0, 0, 0, 1.0)
