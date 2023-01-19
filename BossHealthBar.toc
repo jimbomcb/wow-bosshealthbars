@@ -1,5 +1,5 @@
 ## Interface: 30401
-## Version: v4
+## Version: v5
 ## Title: Boss Health Bar (WOTLK)
 ## Notes: On-screen health bars for WotLK Classic encounters
 ## Author: Talamah
