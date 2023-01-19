@@ -178,8 +178,8 @@ function prototype:LostTracking()
 	end
 
 	-- Prefix health with a ≈ to indicate that it's an approximate value based on last sighting (and help distinguish untracked at a glance)
-	local curText = self.hptext:GetText()
-	if string.sub(curText, 0, 1) ~= "≈" then self.hptext:SetText("≈" .. curText) end
+	--local curText = self.hptext:GetText()
+	--if string.sub(curText, 0, 1) ~= "≈" then self.hptext:SetText("≈" .. curText) end
 end
 
 function prototype:OnDeath()
