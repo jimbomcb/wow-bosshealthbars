@@ -12,30 +12,38 @@ function HealthBar:New(parent, width, height)
 	frame:SetWidth(width)
 	frame:SetHeight(height)
 
-    local tex = frame:CreateTexture();
-    tex:SetColorTexture(0, 0, 0, 1.0)
-    tex:SetAllPoints();
-    tex:SetAlpha(0.5);
+	local tex = frame:CreateTexture()
+	tex:SetColorTexture(0, 0, 0, 1.0)
+	tex:SetAllPoints()
+	tex:SetAlpha(0.5)
 
 	local bosshealth = CreateFrame("StatusBar", nil, frame)
 	bosshealth:SetMinMaxValues(0,1)
 	bosshealth:SetPoint("TOPLEFT",1,-1)
 	bosshealth:SetPoint("BOTTOMRIGHT",-1,1)
-    bosshealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar");
+	bosshealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
 	frame.hpbar = bosshealth
 
 	local overlay = CreateFrame("Frame", nil, bosshealth)
 	overlay:SetAllPoints(true)
 	overlay:SetFrameLevel(bosshealth:GetFrameLevel()+5)
 
-    local name = overlay:CreateFontString(nil, "OVERLAY")
-    name:SetPoint("LEFT", 4, 0)
-    name:SetFont(temp_font, 12, "OUTLINE")
+	local name = overlay:CreateFontString(nil, "OVERLAY")
+	name:SetPoint("TOPLEFT", overlay, "TOPLEFT", 4, 0)
+	name:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -60, 0)
+	name:SetFont(temp_font, 12, "OUTLINE")
+	name:SetWordWrap(false)
+	name:SetJustifyH("LEFT")
+	name:SetJustifyV("MIDDLE")
 	frame.bossname = name
 
-    local hp = overlay:CreateFontString(nil, "OVERLAY")
-    hp:SetPoint("RIGHT", -4, 0)
-    hp:SetFont(temp_font, 12, "OUTLINE")
+	local hp = overlay:CreateFontString(nil, "OVERLAY")
+	hp:SetPoint("TOPLEFT", overlay, "TOPRIGHT", -60, 0)
+	hp:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -4, 0)
+	hp:SetFont(temp_font, 12, "OUTLINE")
+	hp:SetWordWrap(false)
+	hp:SetJustifyH("RIGHT")
+	hp:SetJustifyV("MIDDLE")
 	frame.hptext = hp
 
 	frame:Reset()
@@ -51,8 +59,8 @@ function prototype:Reset()
 	self.isTracked = false
 	self.unitDead = false
 	self.expiryTime = {}
-    self.spawnIndex = 0
-    --self.spawnTime = 0
+	self.spawnIndex = 0
+	--self.spawnTime = 0
 	self.uniqueId = 0
 	self:Hide()
 
@@ -109,10 +117,10 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
 
 	-- Track spawn time
 	-- local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
-    -- local spawnEpoch = GetServerTime() - (GetServerTime() % 2^23)
-    -- local spawnEpochOffset = bit.band(tonumber(string.sub(spawnUID, 5), 16), 0x7fffff)
-    -- self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
-    -- self.spawnTime = spawnEpoch + spawnEpochOffset
+	-- local spawnEpoch = GetServerTime() - (GetServerTime() % 2^23)
+	-- local spawnEpochOffset = bit.band(tonumber(string.sub(spawnUID, 5), 16), 0x7fffff)
+	-- self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
+	-- self.spawnTime = spawnEpoch + spawnEpochOffset
 
 	local unitName = UnitName(sourceUnitId)
 	-- Disabled as I think this might cause more confusion than it's worth
@@ -168,6 +176,10 @@ function prototype:LostTracking()
 	if self.trackingSettings.expireAfterTrackingLoss ~= nil then
 		self:ScheduleCleanup("lost", self.trackingSettings.expireAfterTrackingLoss)
 	end
+
+	-- Prefix health with a ≈ to indicate that it's an approximate value based on last sighting (and help distinguish untracked at a glance)
+	local curText = self.hptext:GetText()
+	if string.sub(curText, 0, 1) ~= "≈" then self.hptext:SetText("≈" .. curText) end
 end
 
 function prototype:OnDeath()

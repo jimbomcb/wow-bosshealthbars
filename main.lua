@@ -1,5 +1,5 @@
 local BossHealthBar = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
-_G.BHB = BossHealthBar;
+_G.BHB = BossHealthBar
 
 local temp_font = "Fonts\\FRIZQT__.TTF" -- TODO: Expose to settings
 
@@ -10,11 +10,12 @@ local defaultSettings = {
 		hideAnchorWhenLocked = false,
 		growUp = false,
 		barWidth = 220,
-		barHeight = 22
+		barHeight = 22,
+		resetBarsOnEncounterFinish = false
 	}
 }
 
-local options = { 
+local options = {
 	name = "Boss Health Bars",
 	handler = BossHealthBar,
 	type = "group",
@@ -63,7 +64,7 @@ local options = {
 				get = "GetGrowUp"
 			},
 			barWidth = {
-				order = 3,
+				order = 10,
 				name = "Bar Width",
 				desc = "Width of each boss health bar, default: 220",
 				type = "range",
@@ -76,7 +77,7 @@ local options = {
 				width = "full"
 			},
 			barHeight = {
-				order = 4,
+				order = 11,
 				name = "Bar Height",
 				desc = "Height of each boss health bar, default: 22",
 				type = "range",
@@ -86,7 +87,20 @@ local options = {
 				set = "SetBarHeight",
 				get= "GetBarHeight",
 				width = "full"
-			}
+			},
+			resetBarsOnEncounterFinish = {
+				order = 5,
+				name = "Reset Bars on Encounter End",
+				desc = "Clear any active health bars on encounter end? Otherwise health bars remain up until next encounter, which can be useful for determining your wipe percentage.",
+				type = "toggle",
+				set = function (info, val)
+					BossHealthBar.db.profile.resetBarsOnEncounterFinish = val
+					if val and not BossHealthBar.encounterActive then BossHealthBar:WaitingForEncounter() end -- We want the bars to hide after encounter, reset if we're not in encounter
+				end,
+				get = function (info)
+					return BossHealthBar.db.profile.resetBarsOnEncounterFinish
+				end
+			},
 		  }
 		}
 	}
@@ -147,6 +161,12 @@ local encounterMap = {
 	[1119] = { npcs = { [1] = { id = 15989 } } }, -- Sapph
 	[1120] = { npcs = { [1] = { id = 15928 }, [2] = { id = 15929, expireAfterDeath = 8.0 }, [3] = { id = 15930, expireAfterDeath = 8.0 } } }, -- Thadd
 	[1121] = { npcs = { [1] = { id = 16064 }, [2] = { id = 30549 }, [3] = { id = 16065 }, [4] = { id = 16063 } } }, -- FourHoursemen: FrontLeft, FrontRight, BackLeft, BackRight
+
+	-- Sartharion (Classic)
+	[712] = { npcs = { [1] = { id = 28860 }, [2] = { id = 30452 }, [3] = { id = 30451 }, [4] = { id = 30449 } } }, -- Sartharion, Tenebron, Shadron, Vesperon
+
+	-- EoE (Classic)
+	[734] = { npcs = { [1] = { id = 28859 }, [2] = { id = 30084, expireAfterDeath = 15.0, expireAfterTrackingLoss = 15.0  } } }, -- Malygos, Power Spark,
 
 	-- Debug encounter
 	[0] = {
@@ -216,10 +236,10 @@ function BossHealthBar:OnInitialize()
 
 	self:RegisterEvent("ENCOUNTER_START", "OnEncounterStart")
 	self:RegisterEvent("ENCOUNTER_END", "OnEncounterEnd")
-	
+
 	self:RegisterChatCommand("bhb", "OnSlashCommand")
 
-	self.baseFrame = CreateFrame("Frame", "BossHealthBarBase", UIParent)
+	self.baseFrame = CreateFrame("Frame", "BossHealthBar", UIParent)
 	self.baseFrame:SetWidth(self:GetBarWidth())
 	self.baseFrame:SetHeight(self:GetBarHeight())
 	self.baseFrame:SetClampedToScreen(true)
@@ -232,13 +252,13 @@ function BossHealthBar:OnInitialize()
 	self.boundCL = false -- Are we actively bound to the combat log events
 
 	self.currentStatus = ""
-	self.statusColorR = 0; self.statusColorG = 1; self.statusColorB = 0; self.statusColorA = 1;
+	self.statusColorR = 0; self.statusColorG = 1; self.statusColorB = 0; self.statusColorA = 1
 
 	-- Context menu
 	self.contextMenu = CreateFrame("FRAME", nil, self.baseFrame, "UIDropDownMenuTemplate")
 	do
-		self.contextMenu:SetPoint("TOPLEFT", 0, -40);
-		UIDropDownMenu_Initialize(self.contextMenu, DropdownInit_ContextMenu, "MENU");
+		self.contextMenu:SetPoint("TOPLEFT", 0, -40)
+		UIDropDownMenu_Initialize(self.contextMenu, DropdownInit_ContextMenu, "MENU")
 		self.contextMenu:Hide()
 	end
 
@@ -270,20 +290,19 @@ end
 
 function BossHealthBar:CreateAnchor()
 	local baseBar = CreateFrame("Frame", "BossHealthBarBase", self.baseFrame)
-	baseBar:SetWidth(self:GetBarWidth())
-	baseBar:SetHeight(self:GetBarHeight())
+	baseBar:SetAllPoints()
 
-	local tex = baseBar:CreateTexture();
+	local tex = baseBar:CreateTexture()
 	tex:SetColorTexture(0, 0, 0, 1.0)
-	tex:SetAllPoints();
-	tex:SetAlpha(0.5);
+	tex:SetAllPoints()
+	tex:SetAlpha(0.5)
 
 	local baseBarHealth = CreateFrame("StatusBar", nil, baseBar)
 	baseBarHealth:SetMinMaxValues(0,1)
 	baseBarHealth:SetValue(1.0)
-	baseBarHealth:SetPoint("TOPLEFT",1,-1)
-	baseBarHealth:SetPoint("BOTTOMRIGHT",-1,1)
-	baseBarHealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar");
+	baseBarHealth:SetPoint("TOPLEFT", baseBar, "TOPLEFT", 1, -1)
+	baseBarHealth:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -1, 1)
+	baseBarHealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
 	baseBarHealth:SetStatusBarColor(self.statusColorR, self.statusColorG, self.statusColorB, self.statusColorA)
 	baseBar.healthBar = baseBarHealth
 
@@ -292,13 +311,17 @@ function BossHealthBar:CreateAnchor()
 	overlay:SetFrameLevel(baseBarHealth:GetFrameLevel()+1)
 
 	local name = overlay:CreateFontString(nil, "OVERLAY")
-	name:SetPoint("LEFT", 4, 0)
+	name:SetPoint("TOPLEFT", baseBar, "TOPLEFT", 4, 0)
+	name:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -60, 0)
+	name:SetJustifyH("LEFT")
+	name:SetJustifyV("MIDDLE")
 	name:SetFont(temp_font, 12, "OUTLINE")
+	name:SetWordWrap(false)
 	name:SetText("Boss Health Bar")
 
 	local status = overlay:CreateFontString(nil, "OVERLAY")
-	status:SetPoint("TOPLEFT", self:GetBarWidth() - 84, 0)
-	status:SetPoint("BOTTOMRIGHT", -4, 0)
+	status:SetPoint("TOPLEFT", baseBar, "TOPRIGHT", -60, 0)
+	status:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -6, 0)
 	status:SetFont(temp_font, 8, "OUTLINE")
 	status:SetNonSpaceWrap(true)
 	status:SetJustifyH("RIGHT")
@@ -316,28 +339,28 @@ function BossHealthBar:UpdateBarLockState()
 	if lockMovement then
 		--self.baseFrame:SetMovable(false)
 		self.baseFrame:EnableMouse(false)
-		self.baseFrame:SetScript("OnDragStart", nil);
-		self.baseFrame:SetScript("OnDragStop", nil);
-		self.baseFrame:SetScript("OnMouseUp", nil);
+		self.baseFrame:SetScript("OnDragStart", nil)
+		self.baseFrame:SetScript("OnDragStop", nil)
+		self.baseFrame:SetScript("OnMouseUp", nil)
 	else
 		--self.baseFrame:SetMovable(true)
 		self.baseFrame:EnableMouse(true)
 		self.baseFrame:RegisterForDrag("LeftButton")
-		self.baseFrame:SetScript("OnDragStart", self.baseFrame.StartMoving);
+		self.baseFrame:SetScript("OnDragStart", self.baseFrame.StartMoving)
 		self.baseFrame:SetScript("OnDragStop", function()
 			self.baseFrame:StopMovingOrSizing()
 			BossHealthBar:SavePosition()
-		end);
+		end)
 	end
 
 	if lockClickthrough then
-		self.baseFrame:SetScript("OnMouseUp", nil);
+		self.baseFrame:SetScript("OnMouseUp", nil)
 	else
 		self.baseFrame:SetScript("OnMouseUp", function (self, button)
 			if button == "RightButton" then
 				BossHealthBar:ShowContextMenu()
 			end
-		end);
+		end)
 	end
 end
 
@@ -359,9 +382,11 @@ end
 function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficultyId, groupSize)
 	--print("BHB Dbg: Encounter " .. encounterId .. " name " .. encounterName .. " diff " .. difficultyId .. " size " .. groupSize)
 
-	local encounterData = encounterMap[encounterId];
+	local encounterData = encounterMap[encounterId]
 	if encounterData == nil then
 		-- No encounter data, no healthbar available
+		-- Clear existing encounter bars and update the status to signal no encounter found
+		self:WaitingForEncounter()
 		self:UpdateStatus(format("Unknown encounter #%d", encounterId), 0.5, 0.5, 0.5, 1.0)
 		return
 	end
@@ -385,13 +410,7 @@ function BossHealthBar:OnSlashCommand(input)
 			local encounterId = tonumber(param1)
 			print("BHB Debug Start: Encounter " .. encounterId)
 
-			local encounterData = encounterMap[encounterId];
-			if encounterData == nil then
-				print("BHB Debug Start: No encounter found.")
-			else
-				self.encounterSize = 25
-				self:InitForEncounter(encounterData)
-			end
+			self:OnEncounterStart(nil, encounterId, "foo", "foo", 5)
 		elseif cmd == "end" or cmd == "stop" then
 			self:EndActiveEncounter()
 			print("Encounter ended")
@@ -402,7 +421,7 @@ function BossHealthBar:OnSlashCommand(input)
 end
 
 function BossHealthBar:ShowContextMenu()
-	ToggleDropDownMenu(1, nil, self.contextMenu, "cursor", 3, -3);
+	ToggleDropDownMenu(1, nil, self.contextMenu, "cursor", 3, -3)
 end
 
 function BossHealthBar:GetBarLockState()
@@ -465,7 +484,7 @@ function BossHealthBar:OnSizeChanged()
 	self.anchorBar:SetHeight(saneH)
 
 	-- TODO: Can we better handle the layout of the frame to not require this? Still figuring out the frame setup	
-	self.anchorBar.statusText:SetPoint("TOPLEFT", self:GetBarWidth() - 84, 0)
+	-- self.anchorBar.statusText:SetPoint("TOPLEFT", self:GetBarWidth() - 84, 0)
 
 	-- Pooled bars
 	for idx, bar in pairs(self.barPool) do
@@ -521,44 +540,44 @@ end
 function DropdownInit_ContextMenu()
 	local barLocked = BossHealthBar:GetBarLockState() == "LOCKED"
 
-	local info = UIDropDownMenu_CreateInfo();
-	info.text = "Bar Lock";
+	local info = UIDropDownMenu_CreateInfo()
+	info.text = "Bar Lock"
 	info.arg1 = (barLocked and "UNLOCKED" or "LOCKED")
 	info.checked = barLocked
 	info.func = function(info, arg1) BossHealthBar:SetBarLockState(nil, arg1) end
-	UIDropDownMenu_AddButton(info);
+	UIDropDownMenu_AddButton(info)
 
-	local info = UIDropDownMenu_CreateInfo();
-	info.text = "Hide Anchor While Locked";
+	local info = UIDropDownMenu_CreateInfo()
+	info.text = "Hide Anchor While Locked"
 	info.arg1 = not BossHealthBar.db.profile.hideAnchorWhenLocked
 	info.checked = BossHealthBar.db.profile.hideAnchorWhenLocked
-	info.func = function(info, arg1) 
+	info.func = function(info, arg1)
 		BossHealthBar.db.profile.hideAnchorWhenLocked = arg1
-		BossHealthBar:UpdateAnchorVisibility() 
+		BossHealthBar:UpdateAnchorVisibility()
 	end
-	UIDropDownMenu_AddButton(info);
+	UIDropDownMenu_AddButton(info)
 
-	local info = UIDropDownMenu_CreateInfo();
-	info.text = "Settings";
-	info.notCheckable = true 
+	local info = UIDropDownMenu_CreateInfo()
+	info.text = "Settings"
+	info.notCheckable = true
 	info.func = function() LibStub("AceConfigDialog-3.0"):Open("BossHealthBar") end
-	UIDropDownMenu_AddButton(info);
+	UIDropDownMenu_AddButton(info)
 
 	-- Option to clear the data for any encounters that are no longer active, resetting to anchor only
 	local showResetButton = not BossHealthBar.encounterActive and BossHealthBar:HasActiveBar()
 
-	--[[local info = UIDropDownMenu_CreateInfo();
-	info.text = "Clear Previous Encounter";
+	--[[local info = UIDropDownMenu_CreateInfo()
+	info.text = "Clear Previous Encounter"
 	info.notCheckable = true
 	info.func = function() BossHealthBar:WaitingForEncounter() end
 	info.opacity = 0.1
 	UIDropDownMenu_AddButton(info);]]--
 
-	local info = UIDropDownMenu_CreateInfo();
-	info.text = "Cancel";
-	info.notCheckable = true 
+	local info = UIDropDownMenu_CreateInfo()
+	info.text = "Cancel"
+	info.notCheckable = true
 	info.func = function() CloseDropDownMenus() end
-	UIDropDownMenu_AddButton(info);
+	UIDropDownMenu_AddButton(info)
 end
 
 function BossHealthBar:InitForEncounter(encounterData)
@@ -580,7 +599,7 @@ function BossHealthBar:InitForEncounter(encounterData)
 	end
 
 	-- print("BHB New Encounter: " .. tostring(encounterData))
-	self.encounterActive = true;
+	self.encounterActive = true
 	self.encounterInfo = {
 		trackedIDs = {},
 		currentTargets = {},
@@ -618,7 +637,6 @@ function BossHealthBar:EndActiveEncounter()
 	end
 
 	self.encounterActive = false
-	self:UpdateStatus("Waiting for encounter...", 0, 1, 0, 1)
 	self:UpdateAnchorVisibility()
 
 	if self.encounterTick ~= nil then
@@ -631,6 +649,11 @@ function BossHealthBar:EndActiveEncounter()
 		if not npcBar:HasExpired() and npcBar:IsTracked() then
 			npcBar:LostTracking()
 		end
+	end
+
+	-- Reset full state if user wants
+	if self.db.profile.resetBarsOnEncounterFinish then
+		self:WaitingForEncounter()
 	end
 end
 
@@ -722,7 +745,7 @@ function BossHealthBar:TickActiveEncounter()
 		for npcGuid, _ in pairs(expiredBars) do
 			self.encounterInfo.trackedUnits[npcGuid] = nil
 		end
-		
+
 		self:UpdateAnchorVisibility()
 	end
 
@@ -748,7 +771,7 @@ function BossHealthBar:GetNewBar()
 	for idx, bar in pairs(self.barPool) do
 		if not bar:IsActive() then return bar end
 		lastIdx = idx
-	end 
+	end
 
 	local baseBar =_G.BHB.HealthBar:New(self.baseFrame, self:GetBarWidth(), self:GetBarHeight())
 	self.barPool[lastIdx + 1] = baseBar
@@ -759,11 +782,11 @@ function BossHealthBar:SortActiveBars()
 	local activeBars = {}
 	local activeBarIdx = 1
 	for idx, bar in pairs(self.barPool) do
-		if bar:IsActive() then 
+		if bar:IsActive() then
 			activeBars[activeBarIdx] = bar
 			activeBarIdx = activeBarIdx + 1
 		end
-	end 
+	end
 
 	table.sort(activeBars, function(a,b)
 		local prioA = a:GetPriority()
@@ -773,7 +796,7 @@ function BossHealthBar:SortActiveBars()
 		return a:GetBarUID() < b:GetBarUID()
 	end)
 
-	for k, v in ipairs(activeBars) do 
+	for k, v in ipairs(activeBars) do
 		v:SetPoint("TOPLEFT", 0, (k - 1) * (self:GetBarHeight() * (self.db.profile.growUp and 1 or -1)))
 	end
 end
