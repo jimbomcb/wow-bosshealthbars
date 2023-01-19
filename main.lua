@@ -371,6 +371,7 @@ function BossHealthBar:RefreshConfig(source)
 	self:SetBarLockState(nil, self:GetBarLockState())
 	self:SetGrowUp(nil, self:GetGrowUp())
 	self:SetHideAnchorWhenLocked(nil, self:GetHideAnchorWhenLocked())
+	self:OnSizeChanged()
 end
 
 function BossHealthBar:OnEnable()
