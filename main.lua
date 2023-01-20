@@ -11,7 +11,8 @@ local defaultSettings = {
 		growUp = false,
 		barWidth = 220,
 		barHeight = 22,
-		resetBarsOnEncounterFinish = false
+		resetBarsOnEncounterFinish = false,
+		showTargetMarkerIcons = true
 	}
 }
 
@@ -99,6 +100,18 @@ local options = {
 				end,
 				get = function (info)
 					return BossHealthBar.db.profile.resetBarsOnEncounterFinish
+				end
+			},
+			showTargetMarkerIcons = {
+				order = 6,
+				name = "Show Marker Icons",
+				desc = "If enabled, wrap the name of units in their raid icon (skull, cross, etc).",
+				type = "toggle",
+				set = function (info, val)
+					BossHealthBar.db.profile.showTargetMarkerIcons = val
+				end,
+				get = function (info)
+					return BossHealthBar.db.profile.showTargetMarkerIcons
 				end
 			},
 		  }

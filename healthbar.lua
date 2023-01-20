@@ -5,6 +5,17 @@ BHB.HealthBar = HealthBar
 
 local temp_font = "Fonts\\FRIZQT__.TTF" -- TODO: Expose to settings
 
+ICON_LIST = {
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_4:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_5:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_6:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_7:",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:",
+}
+
 function HealthBar:New(parent, width, height)
 	local frame = CreateFrame("Frame", "BossHealthBar", parent)
 	for k,v in pairs(prototype) do frame[k] = v end -- Copy in prototype methods
@@ -55,25 +66,17 @@ function prototype:Reset()
 	self.barActive = false
 	self.targetGuid = nil
 	self.healthFrac = 1.0
-	self.hasName = false
 	self.isTracked = false
 	self.unitDead = false
 	self.expiryTime = {}
 	self.spawnIndex = 0
 	--self.spawnTime = 0
 	self.uniqueId = 0
+	self.unitName = "Unknown"
+	self.unitMarker = nil
 	self:Hide()
 
 	UpdateBarColor(self)
-end
-
-function prototype:SetName(txt, isPlaceholder)
-	self.hasName = not isPlaceholder
-	self.bossname:SetText(txt)
-end
-
-function prototype:HasName()
-	return self.hasName
 end
 
 function prototype:SetHealth(unitHealth, unitMaxHealth)
@@ -130,6 +133,7 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
 	else
 		self.bossname:SetText(unitName)
 	end]]--
+	self.unitName = unitName
 	self.bossname:SetText(unitName)
 
 	self:UpdateFrom(sourceUnitId)
@@ -162,6 +166,18 @@ function prototype:UpdateFrom(unitId)
 	if not self.unitDead then
 		local unitHP, unitHPMax = UnitHealth(unitId), UnitHealthMax(unitId)
 		self:SetHealth(unitHP, unitHPMax)
+	end
+
+	-- Update raid target icons around the target name
+	local unitMarker = GetRaidTargetIndex(unitId)
+	if unitMarker ~= self.unitMarker and BHB.db.profile.showTargetMarkerIcons then
+		-- Unit marker changed, nil = no icon
+		self.unitMarker = unitMarker
+
+		local unitName = self.unitName
+		local unitTexture = unitMarker ~= nil and ICON_LIST[unitMarker] .. "0|t" or nil
+		if unitTexture ~= nil then unitName = unitTexture .. unitName .. unitTexture end
+		self.bossname:SetText(unitName)
 	end
 end
 
