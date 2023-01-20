@@ -118,7 +118,7 @@ local encounterMap = {
 	[746] = { npcs = { [1] = { id = 33186 } } }, -- Razorscale
 	[747] = { npcs = { [1] = { id = 33293 }, [2] = { id = 33329 } } }, -- XT
 	[748] = { npcs = { [1] = { id = 32867 }, [2] = { id = 32927 }, [3] = { id = 32857 } } }, -- Iron Council
-	[749] = { npcs = { [1] = { id = 32930 }, [2] = { id = 32934 }, [3] = { id = 32933 } } }, -- Kologarn
+	[749] = { npcs = { [1] = { id = 32930 }, [2] = { id = 32934, expireAfterDeath = 30.0 }, [3] = { id = 32933, expireAfterDeath = 30.0 } } }, -- Kologarn
 	[750] = { npcs = { [1] = { id = 33515 }, [2] = { id = 34035 } } }, -- Auriaya, Feral Defenders
 	[751] = { npcs = { [1] = { id = 32845 } } }, -- Hodir
 	[752] = { npcs = { [1] = { id = 32865 }, [2] = { id = 32872, expireAfterDeath = 30.0 }, [3] = { id = 32873, expireAfterDeath = 30.0 } } }, -- Thorim, Runic Colossus, Ancient Rune Giant
@@ -135,7 +135,7 @@ local encounterMap = {
 	[1139] = { npcs = { [1] = { id = 33186 } } }, -- Razorscale
 	[1142] = { npcs = { [1] = { id = 33293 }, [2] = { id = 33329 } } }, -- XT
 	[1140] = { npcs = { [1] = { id = 32867 }, [2] = { id = 32927 }, [3] = { id = 32857 } } }, -- Iron Council
-	[1137] = { npcs = { [1] = { id = 32930 }, [2] = { id = 32934 }, [3] = { id = 32933 } } }, -- Kologarn
+	[1137] = { npcs = { [1] = { id = 32930 }, [2] = { id = 32934, expireAfterDeath = 30.0 }, [3] = { id = 32933, expireAfterDeath = 30.0 } } }, -- Kologarn
 	[1131] = { npcs = { [1] = { id = 33515 }, [2] = { id = 34035 } } }, -- Auriaya, Feral Defenders
 	[1135] = { npcs = { [1] = { id = 32845 } } }, -- Hodir
 	[1141] = { npcs = { [1] = { id = 32865 }, [2] = { id = 32872, expireAfterDeath = 30.0 }, [3] = { id = 32873, expireAfterDeath = 30.0 } } }, -- Thorim, Runic Colossus, Ancient Rune Giant
