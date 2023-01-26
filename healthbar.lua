@@ -80,7 +80,7 @@ function prototype:Reset()
 end
 
 function prototype:SetHealth(unitHealth, unitMaxHealth)
-	local fraction = unitHealth / unitMaxHealth
+	local fraction = unitMaxHealth > 0 and unitHealth / unitMaxHealth or 0
 
 	-- Increase decimal precision under 10%/1%
 	local precision = 0
