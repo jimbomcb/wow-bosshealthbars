@@ -32,7 +32,7 @@ function HealthBar:New(parent, width, height)
 	bosshealth:SetMinMaxValues(0,1)
 	bosshealth:SetPoint("TOPLEFT",1,-1)
 	bosshealth:SetPoint("BOTTOMRIGHT",-1,1)
-	bosshealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	bosshealth:SetStatusBarTexture(BHB:GetBarTextureMedia())
 	frame.hpbar = bosshealth
 
 	local overlay = CreateFrame("Frame", nil, bosshealth)

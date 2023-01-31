@@ -1,6 +1,8 @@
 local BossHealthBar = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
 _G.BHB = BossHealthBar
 
+local LSM = LibStub("LibSharedMedia-3.0")
+
 local temp_font = "Fonts\\FRIZQT__.TTF" -- TODO: Expose to settings
 
 local defaultSettings = {
@@ -12,7 +14,9 @@ local defaultSettings = {
 		barWidth = 220,
 		barHeight = 22,
 		resetBarsOnEncounterFinish = false,
-		showTargetMarkerIcons = true
+		showTargetMarkerIcons = true,
+		reverseOrder = false,
+		barTexutre = "Blizzard"
 	}
 }
 
@@ -21,100 +25,132 @@ local options = {
 	handler = BossHealthBar,
 	type = "group",
 	args = {
-		moreoptions={
-		  name = "Bar Settings",
-		  type = "group",
-		  args={
-			desc = {
-				name = "Alter the look and feel of the boss health bars.",
-				type = "description",
-				order = 0,
-			},
-			barLockState = {
-				type = "select",
-				name = "Bar Lock",
-				desc = "How should the Boss Health Bar panel respond to mouse input?",
-				order = 0,
-				values = {
-					UNLOCKED = "Unlocked",
-					LOCKED = "Locked",
-					LOCKED_CLICKTHROUGH = "Locked & Click-through"
+		layoutsettings={
+			order = 1,
+			name = "Bar Layout Settings",
+			type = "group",
+			args={
+				desc = {
+					name = "Alter the positioning and sizes of the boss health bars.",
+					type = "description",
+					order = 0,
 				},
-				sorting = {
-					[1] = "UNLOCKED",
-					[2] = "LOCKED",
-					[3] = "LOCKED_CLICKTHROUGH"
+				barLockState = {
+					type = "select",
+					name = "Bar Lock",
+					desc = "How should the Boss Health Bar panel respond to mouse input?",
+					order = 0,
+					values = {
+						UNLOCKED = "Unlocked",
+						LOCKED = "Locked",
+						LOCKED_CLICKTHROUGH = "Locked & Click-through"
+					},
+					sorting = {
+						[1] = "UNLOCKED",
+						[2] = "LOCKED",
+						[3] = "LOCKED_CLICKTHROUGH"
+					},
+					get = "GetBarLockState",
+					set = "SetBarLockState",
+					width = "full"
 				},
-				get = "GetBarLockState",
-				set = "SetBarLockState"
-			},
-			hideAnchorWhenLocked = {
-				order = 1,
-				name = "Hide Anchor When Locked",
-				desc = "When the bar is locked (or locked click-through), should the anchor be hidden outside of encounters?",
-				type = "toggle",
-				set = "SetHideAnchorWhenLocked",
-				get = "GetHideAnchorWhenLocked"
-			},
-			growUp = {
-				order = 2,
-				name = "Grow Up",
-				desc = "Add new elements above the anchor instead of below when tracking multiple bosses",
-				type = "toggle",
-				set = "SetGrowUp",
-				get = "GetGrowUp"
-			},
-			barWidth = {
-				order = 10,
-				name = "Bar Width",
-				desc = "Width of each boss health bar, default: 220",
-				type = "range",
-				softMin = 50,
-				min = 160,
-				softMax = 1000,
-				step = 1,
-				set = "SetBarWidth",
-				get= "GetBarWidth",
-				width = "full"
-			},
-			barHeight = {
-				order = 11,
-				name = "Bar Height",
-				desc = "Height of each boss health bar, default: 22",
-				type = "range",
-				min = 12,
-				softMax = 150,
-				step = 1,
-				set = "SetBarHeight",
-				get= "GetBarHeight",
-				width = "full"
-			},
-			resetBarsOnEncounterFinish = {
-				order = 5,
-				name = "Reset Bars on Encounter End",
-				desc = "Clear any active health bars on encounter end? Otherwise health bars remain up until next encounter, which can be useful for determining your wipe percentage.",
-				type = "toggle",
-				set = function (info, val)
-					BossHealthBar.db.profile.resetBarsOnEncounterFinish = val
-					if val and not BossHealthBar.encounterActive then BossHealthBar:WaitingForEncounter() end -- We want the bars to hide after encounter, reset if we're not in encounter
-				end,
-				get = function (info)
-					return BossHealthBar.db.profile.resetBarsOnEncounterFinish
-				end
-			},
-			showTargetMarkerIcons = {
-				order = 6,
-				name = "Show Marker Icons",
-				desc = "If enabled, wrap the name of units in their raid icon (skull, cross, etc).",
-				type = "toggle",
-				set = function (info, val)
-					BossHealthBar.db.profile.showTargetMarkerIcons = val
-				end,
-				get = function (info)
-					return BossHealthBar.db.profile.showTargetMarkerIcons
-				end
-			},
-		  }
+				hideAnchorWhenLocked = {
+					order = 1,
+					name = "Hide Anchor When Locked",
+					desc = "When the bar is locked (or locked click-through), should the anchor be hidden outside of encounters?",
+					type = "toggle",
+					set = "SetHideAnchorWhenLocked",
+					get = "GetHideAnchorWhenLocked",
+					width = "full"
+				},
+				growUp = {
+					order = 2,
+					name = "Grow Up",
+					desc = "Add new elements above the anchor instead of below when tracking multiple bosses",
+					type = "toggle",
+					set = "SetGrowUp",
+					get = "GetGrowUp",
+					width = "full"
+				},
+				reverseOrder = {
+					order = 2,
+					name = "Reverse Order",
+					desc = "Reverse the order in which rows are sorted, usually the boss is at the top and any additional enemies are added below.",
+					type = "toggle",
+					set = "SetReverseOrder",
+					get = "GetReverseOrder",
+					width = "full"
+				},
+				barWidth = {
+					order = 10,
+					name = "Bar Width",
+					desc = "Width of each boss health bar, default: 220",
+					type = "range",
+					softMin = 50,
+					min = 160,
+					softMax = 1000,
+					step = 1,
+					set = "SetBarWidth",
+					get= "GetBarWidth",
+					width = "full"
+				},
+				barHeight = {
+					order = 11,
+					name = "Bar Height",
+					desc = "Height of each boss health bar, default: 22",
+					type = "range",
+					min = 12,
+					softMax = 150,
+					step = 1,
+					set = "SetBarHeight",
+					get= "GetBarHeight",
+					width = "full"
+				},
+				barTexture = {
+					type = "select",
+					name = "Bar Texture",
+					order = 20,
+					dialogControl = "LSM30_Statusbar",
+					values = AceGUIWidgetLSMlists.statusbar,
+					width = "full",
+					set = "SetBarTexture",
+					get= "GetBarTexture",
+				},
+			}
+		},
+		displaysettings={
+			order = 2,
+			name = "Bar Display Settings",
+			type = "group",
+			args={
+				resetBarsOnEncounterFinish = {
+					order = 5,
+					name = "Reset Bars on Encounter End",
+					desc = "Clear any active health bars on encounter end? Otherwise health bars remain up until next encounter, which can be useful for determining your wipe percentage.",
+					type = "toggle",
+					set = function (info, val)
+						BossHealthBar.db.profile.resetBarsOnEncounterFinish = val
+						if val and not BossHealthBar.encounterActive then BossHealthBar:WaitingForEncounter() end -- We want the bars to hide after encounter, reset if we're not in encounter
+					end,
+					get = function (info)
+						return BossHealthBar.db.profile.resetBarsOnEncounterFinish
+					end,
+					width = "full"
+				},
+				showTargetMarkerIcons = {
+					order = 6,
+					name = "Show Marker Icons",
+					desc = "If enabled, wrap the name of units in their raid icon (skull, cross, etc).",
+					type = "toggle",
+					set = function (info, val)
+						BossHealthBar.db.profile.showTargetMarkerIcons = val
+					end,
+					get = function (info)
+						return BossHealthBar.db.profile.showTargetMarkerIcons
+					end,
+					width = "full"
+				},
+			}
 		}
 	}
 }
@@ -280,6 +316,17 @@ function BossHealthBar:OnInitialize()
 	self.anchorBar:SetPoint("TOPLEFT", 0, 0)
 
 	self:WaitingForEncounter()
+
+	-- Bind for media updates, any later-loading addons will call this
+	LSM.RegisterCallback(self, "LibSharedMedia_SetGlobal", "OnMediaUpdate")
+	LSM.RegisterCallback(self, "LibSharedMedia_Registered", "OnMediaUpdate")
+
+end
+
+function BossHealthBar:OnMediaUpdate(event, mediatype, media)
+	if mediatype == LSM.MediaType.STATUSBAR and media == self:GetBarTexture() then
+		self:OnBarMediaUpdate()
+	end
 end
 
 function BossHealthBar:WaitingForEncounter()
@@ -315,7 +362,7 @@ function BossHealthBar:CreateAnchor()
 	baseBarHealth:SetValue(1.0)
 	baseBarHealth:SetPoint("TOPLEFT", baseBar, "TOPLEFT", 1, -1)
 	baseBarHealth:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -1, 1)
-	baseBarHealth:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	baseBarHealth:SetStatusBarTexture(self:GetBarTextureMedia())
 	baseBarHealth:SetStatusBarColor(self.statusColorR, self.statusColorG, self.statusColorB, self.statusColorA)
 	baseBar.healthBar = baseBarHealth
 
@@ -459,6 +506,17 @@ function BossHealthBar:GetGrowUp(info)
 	return self.db.profile.growUp
 end
 
+function BossHealthBar:SetReverseOrder(info, state)
+	self.db.profile.reverseOrder = state
+
+	-- Perform the order change
+	self:SortActiveBars()
+end
+
+function BossHealthBar:GetReverseOrder(info)
+	return self.db.profile.reverseOrder
+end
+
 function BossHealthBar:SetHideAnchorWhenLocked(info, state)
 	BossHealthBar.db.profile.hideAnchorWhenLocked = state
 	BossHealthBar:UpdateAnchorVisibility()
@@ -527,6 +585,28 @@ function BossHealthBar:RestorePosition()
 		-- Store initial position
 		self.baseFrame:SetPoint("TOP", 0, -100)
 		self:SavePosition()
+	end
+end
+
+function BossHealthBar:SetBarTexture(info, texture)
+	self.db.profile.barTexutre = texture
+	self:OnBarMediaUpdate()
+end
+
+function BossHealthBar:GetBarTexture()
+	return self.db.profile.barTexutre
+end
+
+function BossHealthBar:GetBarTextureMedia()
+	return LSM:Fetch("statusbar", self:GetBarTexture())
+end
+
+function BossHealthBar:OnBarMediaUpdate()
+	-- Update existing bars
+	local newMedia = self:GetBarTextureMedia()
+	self.anchorBar.healthBar:SetStatusBarTexture(newMedia)
+	for idx, bar in pairs(self.barPool) do
+		bar.hpbar:SetStatusBarTexture(newMedia)
 	end
 end
 
@@ -810,8 +890,10 @@ function BossHealthBar:SortActiveBars()
 		return a:GetBarUID() < b:GetBarUID()
 	end)
 
+	local barVerticalOffset = (self:GetBarHeight() * (self.db.profile.growUp and 1 or -1))
 	for k, v in ipairs(activeBars) do
-		v:SetPoint("TOPLEFT", 0, (k - 1) * (self:GetBarHeight() * (self.db.profile.growUp and 1 or -1)))
+		local individualBarIndex = self.db.profile.reverseOrder and ((#(activeBars) - k)) or (k - 1) -- Invert index if we're reversing sort order
+		v:SetPoint("TOPLEFT", 0, individualBarIndex * barVerticalOffset)
 	end
 end
 
