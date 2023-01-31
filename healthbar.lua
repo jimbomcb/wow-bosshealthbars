@@ -3,8 +3,6 @@ local BHB = _G.BHB
 local HealthBar,prototype = {},{}
 BHB.HealthBar = HealthBar
 
-local temp_font = "Fonts\\FRIZQT__.TTF" -- TODO: Expose to settings
-
 ICON_LIST = {
 	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:",
 	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:",
@@ -32,31 +30,30 @@ function HealthBar:New(parent, width, height)
 	bosshealth:SetMinMaxValues(0,1)
 	bosshealth:SetPoint("TOPLEFT",1,-1)
 	bosshealth:SetPoint("BOTTOMRIGHT",-1,1)
-	bosshealth:SetStatusBarTexture(BHB:GetBarTextureMedia())
 	frame.hpbar = bosshealth
 
 	local overlay = CreateFrame("Frame", nil, bosshealth)
 	overlay:SetAllPoints(true)
 	overlay:SetFrameLevel(bosshealth:GetFrameLevel()+5)
+	frame.overlay = overlay
 
 	local name = overlay:CreateFontString(nil, "OVERLAY")
 	name:SetPoint("TOPLEFT", overlay, "TOPLEFT", 4, 0)
-	name:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -60, 0)
-	name:SetFont(temp_font, 12, "OUTLINE")
+	--name:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -60, 0)
 	name:SetWordWrap(false)
 	name:SetJustifyH("LEFT")
 	name:SetJustifyV("MIDDLE")
 	frame.bossname = name
 
 	local hp = overlay:CreateFontString(nil, "OVERLAY")
-	hp:SetPoint("TOPLEFT", overlay, "TOPRIGHT", -60, 0)
+	--hp:SetPoint("TOPLEFT", overlay, "TOPRIGHT", -60, 0)
 	hp:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -4, 0)
-	hp:SetFont(temp_font, 12, "OUTLINE")
 	hp:SetWordWrap(false)
 	hp:SetJustifyH("RIGHT")
 	hp:SetJustifyV("MIDDLE")
 	frame.hptext = hp
 
+	frame:OnMediaUpdate()
 	frame:Reset()
 
 	return frame
@@ -239,6 +236,18 @@ end]]--
 
 function prototype:GetBarUID()
 	return self.uniqueId
+end
+
+function prototype:OnMediaUpdate()
+	local fontMedia = BHB:GetFontMedia()
+	local fontSize = BHB:GetFontSize()
+	self.hpbar:SetStatusBarTexture(BHB:GetBarTextureMedia())
+	self.bossname:SetFont(fontMedia, fontSize, "OUTLINE")
+	self.hptext:SetFont(fontMedia, fontSize, "OUTLINE")
+
+	local healthWidth = floor(BHB:GetBarWidth() * 0.33)
+	self.bossname:SetPoint("BOTTOMRIGHT", self.overlay, "BOTTOMRIGHT", -healthWidth, 0)
+	self.hptext:SetPoint("TOPLEFT", self.overlay, "TOPRIGHT", -healthWidth, 0)
 end
 
 function UpdateBarColor(element)

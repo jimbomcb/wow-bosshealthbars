@@ -3,20 +3,20 @@ _G.BHB = BossHealthBar
 
 local LSM = LibStub("LibSharedMedia-3.0")
 
-local temp_font = "Fonts\\FRIZQT__.TTF" -- TODO: Expose to settings
-
 local defaultSettings = {
 	profile = {
 		ver = 1,
 		barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
 		hideAnchorWhenLocked = false,
 		growUp = false,
-		barWidth = 220,
+		barWidth = 260,
 		barHeight = 22,
 		resetBarsOnEncounterFinish = false,
 		showTargetMarkerIcons = true,
 		reverseOrder = false,
-		barTexutre = "Blizzard"
+		barTexutre = "Blizzard",
+		font = "Friz Quadrata TT",
+		fontSize = 12
 	}
 }
 
@@ -84,7 +84,7 @@ local options = {
 				barWidth = {
 					order = 10,
 					name = "Bar Width",
-					desc = "Width of each boss health bar, default: 220",
+					desc = "Width of each boss health bar, Default: " .. tostring(defaultSettings.profile.barWidth),
 					type = "range",
 					softMin = 50,
 					min = 160,
@@ -97,10 +97,10 @@ local options = {
 				barHeight = {
 					order = 11,
 					name = "Bar Height",
-					desc = "Height of each boss health bar, default: 22",
+					desc = "Height of each boss health bar, Default:  " .. tostring(defaultSettings.profile.barHeight),
 					type = "range",
 					min = 12,
-					softMax = 150,
+					softMax = 75,
 					step = 1,
 					set = "SetBarHeight",
 					get= "GetBarHeight",
@@ -115,6 +115,28 @@ local options = {
 					width = "full",
 					set = "SetBarTexture",
 					get= "GetBarTexture",
+				},
+				barFont = {
+					type = "select",
+					name = "Bar Font",
+					order = 21,
+					dialogControl = "LSM30_Font",
+					values = AceGUIWidgetLSMlists.font,
+					width = "0.5",
+					set = "SetFont",
+					get= "GetFont",
+				},
+				fontSize = {
+					order = 22,
+					name = "Font Size",
+					desc = "Size of the boss name & health value. Default: " .. tostring(defaultSettings.profile.fontSize),
+					type = "range",
+					min = 1,
+					softMax = 64,
+					step = 1,
+					set = "SetFontSize",
+					get= "GetFontSize",
+					width = "0.5"
 				},
 			}
 		},
@@ -324,7 +346,8 @@ function BossHealthBar:OnInitialize()
 end
 
 function BossHealthBar:OnMediaUpdate(event, mediatype, media)
-	if mediatype == LSM.MediaType.STATUSBAR and media == self:GetBarTexture() then
+	if 	(mediatype == LSM.MediaType.STATUSBAR and media == self:GetBarTexture()) or
+		(mediatype == LSM.MediaType.FONT and media == self:GetFont()) then
 		self:OnBarMediaUpdate()
 	end
 end
@@ -347,6 +370,9 @@ function BossHealthBar:WaitingForEncounter()
 
 	self:UpdateAnchorVisibility()
 end
+
+local anchorFontFlags = "OUTLINE"
+local anchorFontStatusShrink = 4
 
 function BossHealthBar:CreateAnchor()
 	local baseBar = CreateFrame("Frame", "BossHealthBarBase", self.baseFrame)
@@ -372,17 +398,18 @@ function BossHealthBar:CreateAnchor()
 
 	local name = overlay:CreateFontString(nil, "OVERLAY")
 	name:SetPoint("TOPLEFT", baseBar, "TOPLEFT", 4, 0)
-	name:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -60, 0)
+	name:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
 	name:SetJustifyH("LEFT")
 	name:SetJustifyV("MIDDLE")
-	name:SetFont(temp_font, 12, "OUTLINE")
+	name:SetFont(self:GetFontMedia(), self:GetFontSize(), anchorFontFlags)
 	name:SetWordWrap(false)
 	name:SetText("Boss Health Bar")
+	baseBar.nameText = name
 
 	local status = overlay:CreateFontString(nil, "OVERLAY")
-	status:SetPoint("TOPLEFT", baseBar, "TOPRIGHT", -60, 0)
+	status:SetPoint("TOPLEFT", baseBar, "TOPRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
 	status:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -6, 0)
-	status:SetFont(temp_font, 8, "OUTLINE")
+	status:SetFont(self:GetFontMedia(), self:GetFontSize() - anchorFontStatusShrink, anchorFontFlags)
 	status:SetNonSpaceWrap(true)
 	status:SetJustifyH("RIGHT")
 	status:SetJustifyV("MIDDLE")
@@ -556,7 +583,8 @@ function BossHealthBar:OnSizeChanged()
 	self.anchorBar:SetHeight(saneH)
 
 	-- TODO: Can we better handle the layout of the frame to not require this? Still figuring out the frame setup	
-	-- self.anchorBar.statusText:SetPoint("TOPLEFT", self:GetBarWidth() - 84, 0)
+	self.anchorBar.nameText:SetPoint("BOTTOMRIGHT", self.anchorBar, "BOTTOMRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
+	self.anchorBar.statusText:SetPoint("TOPLEFT", self.anchorBar, "TOPRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
 
 	-- Pooled bars
 	for idx, bar in pairs(self.barPool) do
@@ -601,12 +629,38 @@ function BossHealthBar:GetBarTextureMedia()
 	return LSM:Fetch("statusbar", self:GetBarTexture())
 end
 
+function BossHealthBar:SetFont(info, font)
+	self.db.profile.font = font
+	self:OnBarMediaUpdate()
+end
+
+function BossHealthBar:GetFont()
+	return self.db.profile.font
+end
+
+function BossHealthBar:GetFontMedia()
+	return LSM:Fetch("font", self:GetFont())
+end
+
+function BossHealthBar:SetFontSize(info, size)
+	self.db.profile.fontSize = size
+	self:OnBarMediaUpdate()
+end
+
+function BossHealthBar:GetFontSize(info)
+	return self.db.profile.fontSize
+end
+
 function BossHealthBar:OnBarMediaUpdate()
 	-- Update existing bars
-	local newMedia = self:GetBarTextureMedia()
-	self.anchorBar.healthBar:SetStatusBarTexture(newMedia)
+	local newBarTexture = self:GetBarTextureMedia()
+	local newFont = self:GetFontMedia()
+	self.anchorBar.healthBar:SetStatusBarTexture(newBarTexture)
+	self.anchorBar.nameText:SetFont(newFont, self:GetFontSize(), anchorFontFlags)
+	self.anchorBar.statusText:SetFont(newFont, math.max(1, self:GetFontSize() - anchorFontStatusShrink), anchorFontFlags)
+
 	for idx, bar in pairs(self.barPool) do
-		bar.hpbar:SetStatusBarTexture(newMedia)
+		bar:OnMediaUpdate()
 	end
 end
 
