@@ -16,7 +16,8 @@ local defaultSettings = {
 		reverseOrder = false,
 		barTexutre = "Blizzard",
 		font = "Friz Quadrata TT",
-		fontSize = 12
+		fontSize = 12,
+		healthDisplayOption = "Percentage" -- Default: Percentage. Options: Precentage, Remaining, TotalRemaining
 	}
 }
 
@@ -171,7 +172,32 @@ local options = {
 						return BossHealthBar.db.profile.showTargetMarkerIcons
 					end,
 					width = "full"
-				}
+				},
+				healthDisplayOption = {
+					type = "select",
+					name = "Health Display Option",
+					desc = "Choose how to display boss health.",
+					order = 7,
+					values = {
+						Percentage = "Percentage (50%)",
+						PercentageDetailed = "Percentage Detailed (50.00%)",
+						Remaining = "Remaining (50000))",
+						TotalRemaining = "Total/Remaining (500000/1000000)",
+					},
+					sorting = {
+						[1] = "Percentage",
+						[2] = "PercentageDetailed",
+						[3] = "Remaining",
+						[4] = "TotalRemaining",
+					},
+					get = function (info)
+						return BossHealthBar.db.profile.healthDisplayOption
+					end,
+					set = function (info, val)
+						BossHealthBar.db.profile.healthDisplayOption = val
+					end,
+					width = "full"
+				},
 			}
 		}
 	}
@@ -299,6 +325,18 @@ local encounterMap = {
 			[2] = {
 				id = 31139,
 				expireAfterTrackingLoss = 10.0
+			},
+			[3] = {
+				id = 16128
+			},
+			[4] = {
+				id = 31155
+			},
+			[5] = {
+				id = 30115
+			},
+			[6] = {
+				id = 30116
 			}
 		}
 	},
@@ -522,7 +560,7 @@ function BossHealthBar:OnEncounterEnd(_, encounterId, encounterName, difficultyI
 end
 
 function BossHealthBar:OnSlashCommand(input)
-	if input == "settings" or input == "options" then
+	if input == "settings" or input == "options" or input == "" then
 		LibStub("AceConfigDialog-3.0"):Open("BossHealthBar")
 	elseif string.sub(input, 1, 5) == "debug" then
 		local _, cmd, param1, param2 = strsplit(" ", input)

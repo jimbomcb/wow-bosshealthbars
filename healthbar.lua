@@ -27,26 +27,26 @@ function HealthBar:New(parent, width, height)
 	tex:SetAlpha(0.5)
 
 	local bosshealth = CreateFrame("StatusBar", nil, frame)
-	bosshealth:SetMinMaxValues(0,1)
-	bosshealth:SetPoint("TOPLEFT",1,-1)
-	bosshealth:SetPoint("BOTTOMRIGHT",-1,1)
+	bosshealth:SetMinMaxValues(0, 1)
+	bosshealth:SetPoint("TOPLEFT", 1, -1)
+	bosshealth:SetPoint("BOTTOMRIGHT", -1, 1)
 	frame.hpbar = bosshealth
 
 	local overlay = CreateFrame("Frame", nil, bosshealth)
 	overlay:SetAllPoints(true)
-	overlay:SetFrameLevel(bosshealth:GetFrameLevel()+5)
+	overlay:SetFrameLevel(bosshealth:GetFrameLevel() + 5)
 	frame.overlay = overlay
 
 	local name = overlay:CreateFontString(nil, "OVERLAY")
 	name:SetPoint("TOPLEFT", overlay, "TOPLEFT", 4, 0)
-	--name:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -60, 0)
+	name:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -60, 0)
 	name:SetWordWrap(false)
 	name:SetJustifyH("LEFT")
 	name:SetJustifyV("MIDDLE")
 	frame.bossname = name
 
 	local hp = overlay:CreateFontString(nil, "OVERLAY")
-	--hp:SetPoint("TOPLEFT", overlay, "TOPRIGHT", -60, 0)
+	hp:SetPoint("TOPLEFT", overlay, "TOPRIGHT", -150, 0) -- Adjusted position
 	hp:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -4, 0)
 	hp:SetWordWrap(false)
 	hp:SetJustifyH("RIGHT")
@@ -77,16 +77,25 @@ function prototype:Reset()
 end
 
 function prototype:SetHealth(unitHealth, unitMaxHealth)
+	local healthDisplayOption = BHB.db.profile.healthDisplayOption
 	local fraction = unitMaxHealth > 0 and unitHealth / unitMaxHealth or 0
 
-	-- Increase decimal precision under 10%/1%
-	local precision = 0
-	if fraction < 0.01 then
-		precision = 2
-	elseif fraction < 0.1 then
-		precision = 1
+	if healthDisplayOption == "Percentage" then
+		-- Increase decimal precision under 10%/1%
+		local precision = 0
+		if fraction < 0.01 then
+			precision = 2
+		elseif fraction < 0.1 then
+			precision = 1
+		end
+		self:SetHealthFractionText(fraction, format("%." .. precision .. "f%%", fraction * 100.0))
+	elseif healthDisplayOption == "PercentageDetailed" then
+		self:SetHealthFractionText(fraction, format("%.2f%%", fraction * 100.0))
+	elseif healthDisplayOption == "Remaining" then
+		self:SetHealthFractionText(fraction, tostring(unitHealth))
+	elseif healthDisplayOption == "TotalRemaining" then
+		self:SetHealthFractionText(fraction, format("%d/%d", unitHealth, unitMaxHealth))
 	end
-	self:SetHealthFractionText(fraction, format("%." .. precision .. "f%%", fraction * 100.0))
 end
 
 function prototype:SetHealthFractionText(fraction, text)
@@ -245,9 +254,9 @@ function prototype:OnMediaUpdate()
 	self.bossname:SetFont(fontMedia, fontSize, "OUTLINE")
 	self.hptext:SetFont(fontMedia, fontSize, "OUTLINE")
 
-	local healthWidth = floor(BHB:GetBarWidth() * 0.33)
-	self.bossname:SetPoint("BOTTOMRIGHT", self.overlay, "BOTTOMRIGHT", -healthWidth, 0)
-	self.hptext:SetPoint("TOPLEFT", self.overlay, "TOPRIGHT", -healthWidth, 0)
+	--local healthWidth = floor(BHB:GetBarWidth() * 0.33)
+	--self.bossname:SetPoint("BOTTOMRIGHT", self.overlay, "BOTTOMRIGHT", -healthWidth, 0)
+	--self.hptext:SetPoint("TOPLEFT", self.bossname, "TOPRIGHT", 4, 0) -- Adjusted position
 end
 
 function UpdateBarColor(element)
