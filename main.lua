@@ -208,7 +208,7 @@ local options = {
 -- data is:
 --   - NPCs: Lua-style array via integer-indexed table , NPC ID for each boss character to track
 -- https://wowpedia.fandom.com/wiki/DungeonEncounterID 
-local knownMissingEncounters = { [1086] = "Faction Champions" }
+local knownMissingEncounters = { [1086] = "Faction Champions", [637] = "Faction Champions" }
 local encounterMap = {
 	-- Classic IDs:
 	[744] = { npcs = { [1] = { id = 33113 } } }, -- Flame lev
@@ -287,6 +287,29 @@ local encounterMap = {
 		[2] = { id = 34496 }, -- Eydis
 	}},
 	[1085] = { npcs = { -- Anub
+		[1] = { id = 34564 }, -- Anub
+		[2] = { id = 34607, expireAfterDeath = 3.0, expireAfterTrackingLoss = 5.0 }, -- Burrower
+	}},
+	[629] = { npcs = { -- Beasts
+		[1] = { id = 34796, expireAfterDeath = 5.0, expireAfterTrackingLoss = 15.0 }, -- Gormok
+		[2] = { id = 34800, expireAfterDeath = 5.0, expireAfterTrackingLoss = 5.0 }, -- Snobold
+		[3] = { id = 35144, expireAfterDeath = 5.0, expireAfterTrackingLoss = 5.0 }, -- Acidmaw
+		[4] = { id = 34799, expireAfterDeath = 5.0, expireAfterTrackingLoss = 5.0 }, -- Dreadscale
+		[5] = { id = 34797 }, -- Icehowl
+	}},
+	[633] = { npcs = { -- LORD JARAXXUS EREDAR LORD OF THE BURNING LEGION
+		[1] = { id = 35458, expireAfterDeath = 3.0, expireAfterTrackingLoss = 1.0 }, -- Almighty Wilfred
+		[2] = { id = 34780 }, -- Jaraxxus
+		[3] = { id = 34825, expireAfterDeath = 1.0, expireAfterTrackingLoss = 5.0 }, -- Nether Portals
+		[4] = { id = 34826, expireAfterDeath = 1.0, expireAfterTrackingLoss = 5.0 }, -- Mistress
+		[5] = { id = 34813, expireAfterDeath = 1.0, expireAfterTrackingLoss = 5.0 }, -- Volcano
+	}},
+	-- Faction champions not included.
+	[641] = { npcs = { -- Twins
+		[1] = { id = 34497 }, -- Fjola
+		[2] = { id = 34496 }, -- Eydis
+	}},
+	[645] = { npcs = { -- Anub
 		[1] = { id = 34564 }, -- Anub
 		[2] = { id = 34607, expireAfterDeath = 3.0, expireAfterTrackingLoss = 5.0 }, -- Burrower
 	}},
