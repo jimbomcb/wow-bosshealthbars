@@ -171,7 +171,7 @@ local options = {
 						return BossHealthBar.db.profile.showTargetMarkerIcons
 					end,
 					width = "full"
-				},
+				}
 			}
 		}
 	}
@@ -182,6 +182,7 @@ local options = {
 -- data is:
 --   - NPCs: Lua-style array via integer-indexed table , NPC ID for each boss character to track
 -- https://wowpedia.fandom.com/wiki/DungeonEncounterID 
+local knownMissingEncounters = { [1086] = "Faction Champions" }
 local encounterMap = {
 	-- Classic IDs:
 	[744] = { npcs = { [1] = { id = 33113 } } }, -- Flame lev
@@ -238,6 +239,31 @@ local encounterMap = {
 
 	-- EoE (Classic)
 	[734] = { npcs = { [1] = { id = 28859 }, [2] = { id = 30084, expireAfterDeath = 15.0, expireAfterTrackingLoss = 15.0  } } }, -- Malygos, Power Spark,
+
+	-- TOTC Retail/Classic IDs
+	[1088] = { npcs = { -- Beasts
+		[1] = { id = 34796, expireAfterDeath = 5.0, expireAfterTrackingLoss = 15.0 }, -- Gormok
+		[2] = { id = 34800, expireAfterDeath = 5.0, expireAfterTrackingLoss = 5.0 }, -- Snobold
+		[3] = { id = 35144, expireAfterDeath = 5.0, expireAfterTrackingLoss = 5.0 }, -- Acidmaw
+		[4] = { id = 34799, expireAfterDeath = 5.0, expireAfterTrackingLoss = 5.0 }, -- Dreadscale
+		[5] = { id = 34797 }, -- Icehowl
+	}},
+	[1087] = { npcs = { -- LORD JARAXXUS EREDAR LORD OF THE BURNING LEGION
+		[1] = { id = 35458, expireAfterDeath = 3.0, expireAfterTrackingLoss = 1.0 }, -- Almighty Wilfred
+		[2] = { id = 34780 }, -- Jaraxxus
+		[3] = { id = 34825, expireAfterDeath = 1.0, expireAfterTrackingLoss = 5.0 }, -- Nether Portals
+		[4] = { id = 34826, expireAfterDeath = 1.0, expireAfterTrackingLoss = 5.0 }, -- Mistress
+		[5] = { id = 34813, expireAfterDeath = 1.0, expireAfterTrackingLoss = 5.0 }, -- Volcano
+	}},
+	-- Faction champions not included.
+	[1089] = { npcs = { -- Twins
+		[1] = { id = 34497 }, -- Fjola
+		[2] = { id = 34496 }, -- Eydis
+	}},
+	[1085] = { npcs = { -- Anub
+		[1] = { id = 34564 }, -- Anub
+		[2] = { id = 34607, expireAfterDeath = 3.0, expireAfterTrackingLoss = 5.0 }, -- Burrower
+	}},
 
 	-- Debug encounter
 	[0] = {
@@ -475,7 +501,13 @@ function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficult
 		-- No encounter data, no healthbar available
 		-- Clear existing encounter bars and update the status to signal no encounter found
 		self:WaitingForEncounter()
-		self:UpdateStatus(format("Unknown encounter #%d", encounterId), 0.5, 0.5, 0.5, 1.0)
+
+		local knownUntrackableName = knownMissingEncounters[encounterId]
+		if knownUntrackableName ~= nil then
+			self:UpdateStatus(format("Unable to track %s", knownUntrackableName), 0.5, 0.5, 0.5, 1.0)
+		else
+			self:UpdateStatus(format("Unknown encounter #%d", encounterId), 0.5, 0.5, 0.5, 1.0)
+		end
 		return
 	end
 
