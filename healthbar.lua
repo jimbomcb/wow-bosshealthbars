@@ -255,7 +255,7 @@ end
 
 function prototype:GetPriority()
 	-- Bosses have separate priority so that they're always the first (based on their boss id)
-	if self.bossId ~= nil then return -100 - self.bossId end
+	if self.bossId ~= nil then return 50000 + self.bossId end
 
 	if self.trackingSettings ~= nil then return self.trackingSettings.priority end
 	return 1

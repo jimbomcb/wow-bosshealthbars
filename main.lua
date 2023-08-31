@@ -1,5 +1,22 @@
+-- TODO:
+-- Clickable bars
+-- Resource bars (deathwhisper, Saurfang)
+-- Default to Clean/Expressway
+-- Targeted by N players
+-- See how DBM does auto marking of blood beasts to get them to add in the same order (bind onto SUMMON combat log event)
+-- TTK
+-- MaxBars (max per NPC?)
+
 local BossHealthBar = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
 _G.BHB = BossHealthBar
+
+local FEATURE_BossUnits = true
+local DEBUG_PRINT = function (...)
+	if BossHealthBar.db.profile.debugMode then
+		print("BHB DEBUG:")
+		print(...)
+	end
+end
 
 local LSM = LibStub("LibSharedMedia-3.0")
 
@@ -17,7 +34,8 @@ local defaultSettings = {
 		barTexutre = "Blizzard",
 		font = "Friz Quadrata TT",
 		fontSize = 12,
-		healthDisplayOption = "PercentageDetailed" -- Default: Percentage. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
+		healthDisplayOption = "PercentageDetailed", -- Default: Percentage. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
+		debugMode = false
 	}
 }
 
@@ -26,13 +44,77 @@ local options = {
 	handler = BossHealthBar,
 	type = "group",
 	args = {
-		layoutsettings={
-			order = 1,
-			name = "Bar Layout Settings",
+		generalsettings={
+			order = 0,
+			name = "General Settings",
 			type = "group",
 			args={
 				desc = {
-					name = "Alter the positioning and sizes of the boss health bars.",
+					name = "General Boss Health Bar configuration:",
+					type = "description",
+					order = 0,
+				},
+				resetBarsOnEncounterFinish = {
+					order = 5,
+					name = "Reset Bars on Encounter End",
+					desc = "Clear any active health bars on encounter end? Otherwise health bars remain up until next encounter, which can be useful for determining your wipe percentage.",
+					type = "toggle",
+					set = function (info, val)
+						BossHealthBar.db.profile.resetBarsOnEncounterFinish = val
+						if val and not BossHealthBar.encounterActive then BossHealthBar:WaitingForEncounter() end -- We want the bars to hide after encounter, reset if we're not in encounter
+					end,
+					get = function (info)
+						return BossHealthBar.db.profile.resetBarsOnEncounterFinish
+					end,
+					width = "full"
+				},
+				showTargetMarkerIcons = {
+					order = 6,
+					name = "Show Marker Icons",
+					desc = "If enabled, wrap the name of units in their raid icon (skull, cross, etc).",
+					type = "toggle",
+					set = function (info, val)
+						BossHealthBar.db.profile.showTargetMarkerIcons = val
+					end,
+					get = function (info)
+						return BossHealthBar.db.profile.showTargetMarkerIcons
+					end,
+					width = "full"
+				},
+				healthDisplayOption = {
+					type = "select",
+					name = "Health Display Option",
+					desc = "Choose how to display boss health.",
+					order = 7,
+					values = {
+						Percentage = "Percentage (50%)",
+						PercentageDetailed = "Percentage Detailed (50.00%)",
+						Remaining = "Remaining (50000))",
+						TotalRemaining = "Total/Remaining (500000/1000000)",
+					},
+					sorting = {
+						[1] = "Percentage",
+						[2] = "PercentageDetailed",
+						[3] = "Remaining",
+						[4] = "TotalRemaining",
+					},
+					get = function (info)
+						return BossHealthBar.db.profile.healthDisplayOption
+					end,
+					set = function (info, val)
+						BossHealthBar.db.profile.healthDisplayOption = val
+					end,
+					width = "full"
+				},
+			}
+		},
+		layoutsettings={
+			order = 1,
+			name = "Bar Layout/Style",
+			type = "group",
+			args={
+				desc = {
+					name = "Alter the positioning and sizes of the boss health bars:",
 					type = "description",
 					order = 0,
 				},
@@ -138,65 +220,6 @@ local options = {
 					set = "SetFontSize",
 					get= "GetFontSize",
 					width = "0.5"
-				},
-			}
-		},
-		displaysettings={
-			order = 2,
-			name = "Bar Display Settings",
-			type = "group",
-			args={
-				resetBarsOnEncounterFinish = {
-					order = 5,
-					name = "Reset Bars on Encounter End",
-					desc = "Clear any active health bars on encounter end? Otherwise health bars remain up until next encounter, which can be useful for determining your wipe percentage.",
-					type = "toggle",
-					set = function (info, val)
-						BossHealthBar.db.profile.resetBarsOnEncounterFinish = val
-						if val and not BossHealthBar.encounterActive then BossHealthBar:WaitingForEncounter() end -- We want the bars to hide after encounter, reset if we're not in encounter
-					end,
-					get = function (info)
-						return BossHealthBar.db.profile.resetBarsOnEncounterFinish
-					end,
-					width = "full"
-				},
-				showTargetMarkerIcons = {
-					order = 6,
-					name = "Show Marker Icons",
-					desc = "If enabled, wrap the name of units in their raid icon (skull, cross, etc).",
-					type = "toggle",
-					set = function (info, val)
-						BossHealthBar.db.profile.showTargetMarkerIcons = val
-					end,
-					get = function (info)
-						return BossHealthBar.db.profile.showTargetMarkerIcons
-					end,
-					width = "full"
-				},
-				healthDisplayOption = {
-					type = "select",
-					name = "Health Display Option",
-					desc = "Choose how to display boss health.",
-					order = 7,
-					values = {
-						Percentage = "Percentage (50%)",
-						PercentageDetailed = "Percentage Detailed (50.00%)",
-						Remaining = "Remaining (50000))",
-						TotalRemaining = "Total/Remaining (500000/1000000)",
-					},
-					sorting = {
-						[1] = "Percentage",
-						[2] = "PercentageDetailed",
-						[3] = "Remaining",
-						[4] = "TotalRemaining",
-					},
-					get = function (info)
-						return BossHealthBar.db.profile.healthDisplayOption
-					end,
-					set = function (info, val)
-						BossHealthBar.db.profile.healthDisplayOption = val
-					end,
-					width = "full"
 				},
 			}
 		}
@@ -316,33 +339,61 @@ local encounterMap = {
 
 	-- ICC
 
+	[1095] = { npcs = { -- Blood Council
+		[1] = { id = 37972 }, -- Keleseth (L)
+		[2] = { id = 37970 }, -- Valanar (M)
+		[3] = { id = 37973 }, -- Taladram (R)
+	}},
 	[1096] = { npcs = { -- Deathbringer Saurfang
 		[1] = { id = 37813 }, -- Saurfang
+		[2] = { id = 38508, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- BloodBeasts
 	}},
 	[1097] = { npcs = { -- Festergut
 		[1] = { id = 36626 }, -- Festergut
+		--[2] = { id = 36899, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Big Ooze
+		--[3] = { id = 36897, expireAfterDeath = 1.0, expireAfterTrackingLoss = 1.0 }, -- Little Ooze
+	}},
+	[1098] = { npcs = { -- Valithria
+		[1] = { id = 36789 }, -- Saurfang
 	}},
 	[1099] = { npcs = { -- Gunship
-		[1] = { id = 36855 }, -- Deathwhisper
 	}},
 	[1100] = { npcs = { -- Lady Deathwhisper
 		[1] = { id = 36855 }, -- Deathwhisper
 	}},
 	[1101] = { npcs = { -- Lord Marrowgar
 		[1] = { id = 36612 }, -- Marrowgar
-		[2] = { id = 38711, expireAfterDeath = 3.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
+		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
+	}},
+	[1102] = { npcs = { -- Putricide
+		[1] = { id = 37697, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Volatile Ooze
+		[2] = { id = 36678 }, -- Putricide
+		[3] = { id = 37562, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Gas Cloud
+	}},
+	[1103] = { npcs = { -- Queen Lanathel
+		[1] = { id = 37955 }, -- Queen Lanathel
 	}},
 	[1104] = { npcs = { -- Rotface
 		[1] = { id = 36627 }, -- Rotface
 	}},
-
-
+	[1105] = { npcs = { -- Sindragosa
+		[1] = { id = 36853 }, -- Sindragosa
+		--[2] = { id = 36980, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Ice Tomb
+	}},
+	[1106] = { npcs = { -- Lich King
+		[1] = { id = 36597 }, -- Lich King
+		[2] = { id = 36823, expireAfterTrackingLoss = 10.0 }, -- Terenas Menethil
+		[3] = { id = 36824, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Spirit Warden
+		[4] = { id = 36609, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Val'kyr
+		[5] = { id = 36633, expireAfterDeath = 1.0, expireAfterTrackingLoss = 10.0 }, -- Ice Orb
+	}},
+	
 	-- Debug encounter
 	[0] = {
 		npcs = {
 			[1] = {
 				id = 26316,
-				expireAfterDeath = 3.0, -- Optional: Remove the health bar for this unit n seconds after death
+				expireAfterDeath = 5.0, -- Optional: Remove the health bar for this unit n seconds after death
 				--priority = 25 -- Optional: Ordered high to low, uses npc array idx if no manual priority
 			},
 			[2] = {
@@ -453,9 +504,15 @@ function BossHealthBar:OnInitialize()
 
 	-- Either handle an encounter being in progress, otherwise wait for one to start
 	if IsEncounterInProgress() then
+		DEBUG_PRINT("Encounter already in progress, trying to find encounter ID...")
 		self:TryFindActiveEncounter()
 	else
+		DEBUG_PRINT("No encounter in progress, waiting for start.")
 		self:WaitingForEncounter()
+	end
+
+	if not FEATURE_BossUnits then
+		DEBUG_PRINT("WARNING: BossUnits feature disabled, stock boss health bars will not be shown.")
 	end
 end
 
@@ -496,9 +553,9 @@ end
 
 function BossHealthBar:CancelActiveEncounterSearch()
 	if self.encounterSearchTick ~= nil then
+		DEBUG_PRINT("CancelActiveEncounterSearch")
 		self:CancelTimer(self.encounterSearchTick)
 		self.encounterSearchTick = nil
-		self:WaitingForEncounter()
 	end
 end
 
@@ -506,6 +563,7 @@ function BossHealthBar:TickEncounterSearch()
 	-- No ongoing encounter? Nothing to find.
 	if not IsEncounterInProgress() then
 		self:CancelActiveEncounterSearch()
+		self:WaitingForEncounter()
 		return
 	end
 
@@ -640,6 +698,7 @@ end
 
 function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficultyID, groupSize)
 	--print("BHB Dbg: Encounter " .. encounterId)
+	DEBUG_PRINT("OnEncounterStart", _, encounterId, encounterName, difficultyID, groupSize)
 
 	local encounterData = encounterMap[encounterId]
 	if encounterData == nil then
@@ -658,6 +717,7 @@ function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficult
 end
 
 function BossHealthBar:OnEncounterEnd(_, encounterId, encounterName, difficultyId, groupSize, success)
+	DEBUG_PRINT("OnEncounterEnd", _, encounterId, encounterName, difficultyId, groupSize, success)
 	if self.encounterActive then
 		self:EndActiveEncounterDelayed()
 	end
@@ -679,6 +739,8 @@ function BossHealthBar:OnSlashCommand(input)
 		elseif cmd == "end" or cmd == "stop" then
 			self:EndActiveEncounter()
 			print("Encounter ended")
+		elseif cmd == "toggle" then
+			BossHealthBar.db.profile.debugMode = not BossHealthBar.db.profile.debugMode
 		end
 	else
 		print("Unknown BHB command: " .. input)
@@ -949,7 +1011,7 @@ function BossHealthBar:InitForEncounter(encounterData) -- encounterData is null 
 		end
 	end
 
-	self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 0.25) -- Tick at 4hz for hp check (todo: expose to settings)
+	self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 1/8) -- Tick at 8hz for hp check (todo: expose to settings)
 	self:TickActiveEncounter()
 	self:UpdateAnchorVisibility()
 end
@@ -998,13 +1060,14 @@ function BossHealthBar:OnActiveEncounterCLEU()
 	end
 end
 
+local targetedUnitArray = {}
 function BossHealthBar:TickActiveEncounter()
 	local overallSeenNPCs = {} -- All NPC Guid to IDs that we saw this tick, anything not here is considered missing/untracked
 	local hadBarInvalidation = false
 
 	-- Maintain a set of bars for any "boss" units, a feature that was added in the ICC patch for things that aren't a unit like the gunship
-	local trackedBossGuids = {} -- The list of known boss NPCs w
-	if select(4, GetBuildInfo()) > 30402 then
+	local trackedBossGuids = {} -- The list of known boss NPCs
+	if select(4, GetBuildInfo()) > 30402 and FEATURE_BossUnits then
 		for i=1, 4 do
 			local unitId = "boss" .. i
 			local npcGuid, npcID = GetNPCInfo(unitId)
@@ -1041,26 +1104,47 @@ function BossHealthBar:TickActiveEncounter()
 		end
 	end
 
-	-- Enumerate the targeted, focused, mouseover'd, raidtargeted NPCs
-	local targetedUnits = {}
+	-- Set targetedUnitArray to nil, repopulate any still valid targeted, focused, mouseover'd, raidtargeted NPCs
+	for k in pairs(targetedUnitArray) do
+		targetedUnitArray[k] = nil
+	end
 
 	local unitGuid = UnitGUID("target")
-	if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "target" end
+	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "target" end
+
+	unitGuid = UnitGUID("targettarget")
+	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "targettarget" end
 
 	unitGuid = GetNPCInfo("focus")
-	if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "focus" end
+	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "focus" end
+
+	unitGuid = UnitGUID("focustarget")
+	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "focustarget" end
 
 	unitGuid = GetNPCInfo("mouseover")
-	if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "mouseover" end
+	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "mouseover" end
+
+	unitGuid = GetNPCInfo("mouseovertarget")
+	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "mouseovertarget" end
+
+	-- Iterate nameplates
+	for _, nameplateUnitId in pairs({ "nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
+		"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
+		"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
+		"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40"
+	}) do
+		unitGuid = GetNPCInfo(nameplateUnitId)
+		if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = nameplateUnitId end
+	end
 
 	-- Iterate the n raid players targets
 	for i=1, self.encounterSize do
 		unitGuid = GetNPCInfo("raid" .. i .. "target")
-		if unitGuid ~= nil and targetedUnits[unitGuid] == nil then targetedUnits[unitGuid] = "raid" .. i .. "target" end
+		if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "raid" .. i .. "target" end
 	end
 
 	-- Find desired NPCs to track from our target set
-	for npcGuid, sourceUnitId in pairs(targetedUnits) do
+	for npcGuid, sourceUnitId in pairs(targetedUnitArray) do
 		local npcID = GetIDFromGuid(npcGuid)
 		if npcID ~= nil and self.encounterInfo.trackedIDs[npcID] ~= nil then
 
