@@ -17,7 +17,7 @@ local defaultSettings = {
 		barTexutre = "Blizzard",
 		font = "Friz Quadrata TT",
 		fontSize = 12,
-		healthDisplayOption = "Percentage" -- Default: Percentage. Options: Precentage, Remaining, TotalRemaining
+		healthDisplayOption = "PercentageDetailed" -- Default: Percentage. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
 	}
 }
 
@@ -314,6 +314,29 @@ local encounterMap = {
 		[2] = { id = 34607, expireAfterDeath = 3.0, expireAfterTrackingLoss = 5.0 }, -- Burrower
 	}},
 
+	-- ICC
+
+	[1096] = { npcs = { -- Deathbringer Saurfang
+		[1] = { id = 37813 }, -- Saurfang
+	}},
+	[1097] = { npcs = { -- Festergut
+		[1] = { id = 36626 }, -- Festergut
+	}},
+	[1099] = { npcs = { -- Gunship
+		[1] = { id = 36855 }, -- Deathwhisper
+	}},
+	[1100] = { npcs = { -- Lady Deathwhisper
+		[1] = { id = 36855 }, -- Deathwhisper
+	}},
+	[1101] = { npcs = { -- Lord Marrowgar
+		[1] = { id = 36612 }, -- Marrowgar
+		[2] = { id = 38711, expireAfterDeath = 3.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
+	}},
+	[1104] = { npcs = { -- Rotface
+		[1] = { id = 36627 }, -- Rotface
+	}},
+
+
 	-- Debug encounter
 	[0] = {
 		npcs = {
@@ -424,12 +447,16 @@ function BossHealthBar:OnInitialize()
 	self.anchorBar = self:CreateAnchor()
 	self.anchorBar:SetPoint("TOPLEFT", 0, 0)
 
-	self:WaitingForEncounter()
-
 	-- Bind for media updates, any later-loading addons will call this
 	LSM.RegisterCallback(self, "LibSharedMedia_SetGlobal", "OnMediaUpdate")
 	LSM.RegisterCallback(self, "LibSharedMedia_Registered", "OnMediaUpdate")
 
+	-- Either handle an encounter being in progress, otherwise wait for one to start
+	if IsEncounterInProgress() then
+		self:TryFindActiveEncounter()
+	else
+		self:WaitingForEncounter()
+	end
 end
 
 function BossHealthBar:OnMediaUpdate(event, mediatype, media)
@@ -440,7 +467,7 @@ function BossHealthBar:OnMediaUpdate(event, mediatype, media)
 end
 
 function BossHealthBar:WaitingForEncounter()
-	self:UpdateStatus("Waiting for encounter...", 0, 1, 0, 1)
+	self:UpdateStatus("Waiting for encounter...", 0, 0.5, 0, 1)
 
 	self.encounterInfo = {
 		trackedIDs = {},
@@ -456,6 +483,63 @@ function BossHealthBar:WaitingForEncounter()
 	end
 
 	self:UpdateAnchorVisibility()
+end
+
+-- Called when we load in to an already active encounter, there's no API to detect encounter in progress that I see,
+-- so we instead need to try determine based on our enounter to NPC mapping above (encounterMap)
+function BossHealthBar:TryFindActiveEncounter()
+	if (self.encounterSearchTick ~= nil) then return end -- Already searching
+
+	self:UpdateStatus("Trying to find ongoing encounter ID", 1.0, 1.0, 0, 1)
+	self.encounterSearchTick = self:ScheduleRepeatingTimer("TickEncounterSearch", 5.0) -- Tick in 5 seconds
+end
+
+function BossHealthBar:CancelActiveEncounterSearch()
+	if self.encounterSearchTick ~= nil then
+		self:CancelTimer(self.encounterSearchTick)
+		self.encounterSearchTick = nil
+		self:WaitingForEncounter()
+	end
+end
+
+function BossHealthBar:TickEncounterSearch()
+	-- No ongoing encounter? Nothing to find.
+	if not IsEncounterInProgress() then
+		self:CancelActiveEncounterSearch()
+		return
+	end
+
+	-- Encounter already active? Nothing to find.
+	if self.encounterActive then
+		self:CancelActiveEncounterSearch()
+		return
+	end
+
+	local dungeonName, _, difficultyID, _, maxPlayers, _, _, _ = GetInstanceInfo()
+	if dungeonName == nil then dungeonName = "Unknown" end
+	if difficultyID == nil then difficultyID = 0 end
+	if maxPlayers == nil then maxPlayers = 25 end
+
+	-- We're in an active encounter and want to determine the encounter ID from a targeted NPC ID in the encounterMap
+	local possibleTargets = { "target", "mouseover", "focus" }
+	for i=1, maxPlayers do
+		table.insert(possibleTargets, "raid" .. i .. "target")
+	end
+
+	for encounterID, encounterInfo in pairs(encounterMap) do
+		for _, npcInfo in pairs(encounterInfo.npcs) do
+			for _, target in pairs(possibleTargets) do
+				local guid, npcID = GetNPCInfo(target)
+				if npcID == npcInfo.id then
+					self:OnEncounterStart(nil, encounterID, dungeonName, difficultyID, maxPlayers)
+					return
+				end
+			end
+		end
+	end
+	
+	-- Unknown encounter, just try fall back to default boss frames
+	self:OnEncounterStart(nil, -1, dungeonName, difficultyID, maxPlayers)
 end
 
 local anchorFontFlags = "OUTLINE"
@@ -554,22 +638,19 @@ end
 function BossHealthBar:OnDisable()
 end
 
-function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficultyId, groupSize)
-	--print("BHB Dbg: Encounter " .. encounterId .. " name " .. encounterName .. " diff " .. difficultyId .. " size " .. groupSize)
+function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficultyID, groupSize)
+	--print("BHB Dbg: Encounter " .. encounterId)
 
 	local encounterData = encounterMap[encounterId]
 	if encounterData == nil then
-		-- No encounter data, no healthbar available
-		-- Clear existing encounter bars and update the status to signal no encounter found
-		self:WaitingForEncounter()
-
+		-- No encounter data, potentially untrackable encounter
+		-- Clear existing encounter bars and update the status to signal we can't track this		
 		local knownUntrackableName = knownMissingEncounters[encounterId]
 		if knownUntrackableName ~= nil then
+			self:WaitingForEncounter()
 			self:UpdateStatus(format("Unable to track %s", knownUntrackableName), 0.5, 0.5, 0.5, 1.0)
-		else
-			self:UpdateStatus(format("Unknown encounter #%d", encounterId), 0.5, 0.5, 0.5, 1.0)
+			return
 		end
-		return
 	end
 
 	self.encounterSize = groupSize
@@ -580,6 +661,9 @@ function BossHealthBar:OnEncounterEnd(_, encounterId, encounterName, difficultyI
 	if self.encounterActive then
 		self:EndActiveEncounterDelayed()
 	end
+	
+	-- Clear any ongoing but unresolved search for the current encounter
+	self:CancelActiveEncounterSearch()
 end
 
 function BossHealthBar:OnSlashCommand(input)
@@ -591,7 +675,7 @@ function BossHealthBar:OnSlashCommand(input)
 			local encounterId = tonumber(param1)
 			print("BHB Debug Start: Encounter " .. encounterId)
 
-			self:OnEncounterStart(nil, encounterId, "foo", "foo", 5)
+			self:OnEncounterStart(nil, encounterId, "debug", 0, 25)
 		elseif cmd == "end" or cmd == "stop" then
 			self:EndActiveEncounter()
 			print("Encounter ended")
@@ -821,7 +905,7 @@ function DropdownInit_ContextMenu()
 	UIDropDownMenu_AddButton(info)
 end
 
-function BossHealthBar:InitForEncounter(encounterData)
+function BossHealthBar:InitForEncounter(encounterData) -- encounterData is null in the event we don't have an encounterMap entry
 	-- In the rare case that a new encounter starts while our old encounter has a pending shutdown, do cleanup
 	if self.encounterActive then
 		if self.endEncounterDelay ~= nil then self:CancelTimer(self.endEncounterDelay) end
@@ -850,18 +934,19 @@ function BossHealthBar:InitForEncounter(encounterData)
 
 	self:UpdateStatus("Seeking targets...", 0.5, 0.5, 0.5, 1.0)
 
-	local npcIdx = 1
-
-	while encounterData.npcs[npcIdx] ~= nil do
-		local npcData = encounterData.npcs[npcIdx]
-		self.encounterInfo.trackedIDs[npcData.id] = npcData
-
-		-- If there's no specific priority, use the definition order 
-		if self.encounterInfo.trackedIDs[npcData.id].priority == nil then
-			self.encounterInfo.trackedIDs[npcData.id].priority = 0 - npcIdx
+	if encounterData ~= nil then
+		local npcIdx = 1
+		while encounterData.npcs[npcIdx] ~= nil do
+			local npcData = encounterData.npcs[npcIdx]
+			self.encounterInfo.trackedIDs[npcData.id] = npcData
+	
+			-- If there's no specific priority, use the definition order 
+			if self.encounterInfo.trackedIDs[npcData.id].priority == nil then
+				self.encounterInfo.trackedIDs[npcData.id].priority = 0 - npcIdx
+			end
+	
+			npcIdx = npcIdx + 1
 		end
-
-		npcIdx = npcIdx + 1
 	end
 
 	self.encounterTick = self:ScheduleRepeatingTimer("TickActiveEncounter", 0.25) -- Tick at 4hz for hp check (todo: expose to settings)
@@ -914,6 +999,48 @@ function BossHealthBar:OnActiveEncounterCLEU()
 end
 
 function BossHealthBar:TickActiveEncounter()
+	local overallSeenNPCs = {} -- All NPC Guid to IDs that we saw this tick, anything not here is considered missing/untracked
+	local hadBarInvalidation = false
+
+	-- Maintain a set of bars for any "boss" units, a feature that was added in the ICC patch for things that aren't a unit like the gunship
+	local trackedBossGuids = {} -- The list of known boss NPCs w
+	if select(4, GetBuildInfo()) > 30402 then
+		for i=1, 4 do
+			local unitId = "boss" .. i
+			local npcGuid, npcID = GetNPCInfo(unitId)
+			if npcGuid ~= nil and npcID ~= nil then
+				-- Ensure that a bar exists for this boss
+				if self.encounterInfo.trackedUnits[npcGuid] == nil then
+					-- Newly tracked unit
+					-- Don't newly track a dead NPC
+					if not UnitIsDead(unitId) then
+						overallSeenNPCs[npcGuid] = npcID
+
+						local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
+						self.npcCount[npcID] = npcCount + 1
+
+						-- Try and find the tracking settings for an NPC of this ID, but it could be nil
+						local trackingSettings = self.encounterInfo.trackedIDs[npcID]
+
+						local newBar = self:GetNewBar()
+						newBar:Activate(npcGuid, unitId, trackingSettings, npcCount, i)
+						newBar:Show()
+
+						self.encounterInfo.trackedUnits[npcGuid] = newBar
+						self:UpdateAnchorVisibility()
+						hadBarInvalidation = true
+					end
+				else
+					-- Already tracked unit, update (if not updated this tick)
+					if (overallSeenNPCs[npcGuid] == nil) then
+						overallSeenNPCs[npcGuid] = npcID
+						self.encounterInfo.trackedUnits[npcGuid]:UpdateFrom(unitId)
+					end
+				end
+			end
+		end
+	end
+
 	-- Enumerate the targeted, focused, mouseover'd, raidtargeted NPCs
 	local targetedUnits = {}
 
@@ -933,18 +1060,17 @@ function BossHealthBar:TickActiveEncounter()
 	end
 
 	-- Find desired NPCs to track from our target set
-	local foundNPCsOfInterest = {}
-	local hadBarInvalidation = false
 	for npcGuid, sourceUnitId in pairs(targetedUnits) do
 		local npcID = GetIDFromGuid(npcGuid)
 		if npcID ~= nil and self.encounterInfo.trackedIDs[npcID] ~= nil then
-			foundNPCsOfInterest[npcGuid] = npcID
 
 			-- NPC currently targeted by unitID 'v' is an npc of interest
 			if self.encounterInfo.trackedUnits[npcGuid] == nil then
 				-- Newly tracked unit
 				-- Don't newly track a dead NPC
 				if not UnitIsDead(sourceUnitId) then
+					overallSeenNPCs[npcGuid] = npcID
+
 					local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
 					self.npcCount[npcID] = npcCount + 1
 
@@ -954,7 +1080,7 @@ function BossHealthBar:TickActiveEncounter()
 
 					local trackingSettings = self.encounterInfo.trackedIDs[npcID]
 					local newBar = self:GetNewBar()
-					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, npcCount)
+					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, npcCount, nil)
 					newBar:Show()
 
 					self.encounterInfo.trackedUnits[npcGuid] = newBar
@@ -962,8 +1088,11 @@ function BossHealthBar:TickActiveEncounter()
 					hadBarInvalidation = true
 				end
 			else
-				-- Already tracked unit, update
-				self.encounterInfo.trackedUnits[npcGuid]:UpdateFrom(sourceUnitId)
+				-- Already tracked unit, update (if not updated this tick)
+				if (overallSeenNPCs[npcGuid] == nil) then
+					overallSeenNPCs[npcGuid] = npcID
+					self.encounterInfo.trackedUnits[npcGuid]:UpdateFrom(sourceUnitId)
+				end
 			end
 		end
 	end
@@ -975,7 +1104,7 @@ function BossHealthBar:TickActiveEncounter()
 			npcBar:Reset()
 			expiredBars[npcGuid] = true
 			hadBarInvalidation = true
-		elseif foundNPCsOfInterest[npcGuid] == nil and npcBar:IsTracked() then
+		elseif overallSeenNPCs[npcGuid] == nil and npcBar:IsTracked() then
 			-- Signal tracking lost for anything that wasn't present in this scan
 			npcBar:LostTracking()
 		end

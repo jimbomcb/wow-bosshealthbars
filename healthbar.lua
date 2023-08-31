@@ -116,13 +116,27 @@ function prototype:IsActive()
 	return self.barActive
 end
 
+function prototype:GetUnitName()
+	local unitName = self.unitNameBase
+
+	-- Wrap boss names in *'s
+	if self.bossId ~= nil then unitName = self.bossId .. ": " .. unitName end
+
+	-- Wrap in marker icons
+	local unitTexture = self.unitMarker ~= nil and ICON_LIST[self.unitMarker] .. "0|t" or nil
+	if unitTexture ~= nil then unitName = unitTexture .. unitName .. unitTexture end
+
+	return unitName
+end
+
 -- Captured an NPC of interest with the given Guid, currently targeted by sourceUnitId (may change)
-function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
+function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId, bossId)
 	self:SetActive(true)
 	self.targetGuid = npcGuid
 	self.isTracked = true
 	self.trackingSettings = trackingSettings
 	self.uniqueId = uniqueId
+	self.bossId = bossId -- Nil if not a boss, or int
 
 	-- Track spawn time
 	-- local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
@@ -131,7 +145,7 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
 	-- self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
 	-- self.spawnTime = spawnEpoch + spawnEpochOffset
 
-	local unitName = UnitName(sourceUnitId)
+	self.unitNameBase = UnitName(sourceUnitId)
 	-- Disabled as I think this might cause more confusion than it's worth
 	-- Because the # might not be identical between raid players, and someone calling "attack #3" would be different for different players
 	--[[if self.uniqueId > 1 then
@@ -139,15 +153,14 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId)
 	else
 		self.bossname:SetText(unitName)
 	end]]--
-	self.unitName = unitName
-	self.bossname:SetText(unitName)
 
+	self.bossname:SetText(self:GetUnitName())
 	self:UpdateFrom(sourceUnitId)
 end
 
-function prototype:AppendNameUID()
-	self.bossname:SetText(format("%s #%d", self.bossName:GetText(), self.uniqueId))
-end
+--function prototype:AppendNameUID()
+-- 	self.bossname:SetText(format("%s #%d", self.bossName:GetText(), self.uniqueId))
+--end
 
 function prototype:UpdateFrom(unitId)
 	-- Is there a dev-only assert we can use? 
@@ -155,7 +168,16 @@ function prototype:UpdateFrom(unitId)
 		error("Mismatch, bar was for "..self.targetGuid.." but unit is targeting " .. UnitGUID(unitId))
 		return
 	end
-	
+
+	-- If the unit ID is boss1, boss2, boss3, boss4, ensure we have the correct latest ID
+	if unitId == "boss1" or unitId == "boss2" or unitId == "boss3" or unitId == "boss4" then
+		local bossId = tonumber(string.sub(unitId, 5))
+		if bossId ~= nil then
+			self.bossId = bossId
+			self.bossname:SetText(self:GetUnitName())
+		end
+	end
+
 	self.isTracked = true
 	self:CancelCleanup("lost")
 
@@ -169,21 +191,17 @@ function prototype:UpdateFrom(unitId)
 		self:CancelCleanup("death")
 	end
 
-	if not self.unitDead then
-		local unitHP, unitHPMax = UnitHealth(unitId), UnitHealthMax(unitId)
-		self:SetHealth(unitHP, unitHPMax)
-	end
-
 	-- Update raid target icons around the target name
 	local unitMarker = GetRaidTargetIndex(unitId)
 	if unitMarker ~= self.unitMarker and BHB.db.profile.showTargetMarkerIcons then
 		-- Unit marker changed, nil = no icon
 		self.unitMarker = unitMarker
+		self.bossname:SetText(self:GetUnitName())
+	end
 
-		local unitName = self.unitName
-		local unitTexture = unitMarker ~= nil and ICON_LIST[unitMarker] .. "0|t" or nil
-		if unitTexture ~= nil then unitName = unitTexture .. unitName .. unitTexture end
-		self.bossname:SetText(unitName)
+	if not self.unitDead then
+		local unitHP, unitHPMax = UnitHealth(unitId), UnitHealthMax(unitId)
+		self:SetHealth(unitHP, unitHPMax)
 	end
 end
 
@@ -195,7 +213,7 @@ function prototype:LostTracking()
 	self.isTracked = false
 	UpdateBarColor(self)
 
-	if self.trackingSettings.expireAfterTrackingLoss ~= nil then
+	if self.trackingSettings ~= nil and self.trackingSettings.expireAfterTrackingLoss ~= nil then
 		self:ScheduleCleanup("lost", self.trackingSettings.expireAfterTrackingLoss)
 	end
 
@@ -209,7 +227,7 @@ function prototype:OnDeath()
 	self:SetHealthFractionText(0.0, "DEAD")
 
 	-- Some units should clean up their bar n seconds after death
-	if self.trackingSettings.expireAfterDeath ~= nil then
+	if self.trackingSettings ~= nil and self.trackingSettings.expireAfterDeath ~= nil then
 		self:ScheduleCleanup("death", self.trackingSettings.expireAfterDeath)
 	end
 end
@@ -236,7 +254,11 @@ function prototype:HasExpired()
 end
 
 function prototype:GetPriority()
-	return self.trackingSettings.priority
+	-- Bosses have separate priority so that they're always the first (based on their boss id)
+	if self.bossId ~= nil then return -100 - self.bossId end
+
+	if self.trackingSettings ~= nil then return self.trackingSettings.priority end
+	return 1
 end
 
 --[[function prototype:GetSpawnTime()
