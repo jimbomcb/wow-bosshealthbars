@@ -14,12 +14,16 @@ ICON_LIST = {
 	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:",
 }
 
-function HealthBar:New(parent, width, height)
+function HealthBar:New(parent, width, height, resourceHeight)
 	local frame = CreateFrame("Frame", "BossHealthBar", parent)
 	for k,v in pairs(prototype) do frame[k] = v end -- Copy in prototype methods
 
-	frame:SetWidth(width)
-	frame:SetHeight(height)
+	frame.baseW = width
+	frame.baseH = height
+	frame.baseResourceH = resourceHeight
+
+	frame:SetWidth(frame.baseW)
+	frame:SetHeight(frame.baseH) -- Height is later determined based on resource bar visibility
 
 	local tex = frame:CreateTexture()
 	tex:SetColorTexture(0, 0, 0, 1.0)
@@ -28,26 +32,32 @@ function HealthBar:New(parent, width, height)
 
 	local bosshealth = CreateFrame("StatusBar", nil, frame)
 	bosshealth:SetMinMaxValues(0, 1)
-	bosshealth:SetPoint("TOPLEFT", 1, -1)
-	bosshealth:SetPoint("BOTTOMRIGHT", -1, 1)
+	bosshealth:SetPoint("TOPLEFT", frame, 1, -1)
+	bosshealth:SetPoint("BOTTOMRIGHT", frame, -1, 1)
 	frame.hpbar = bosshealth
 
-	local overlay = CreateFrame("Frame", nil, bosshealth)
+	local bossresource = CreateFrame("StatusBar", nil, frame)
+	bossresource:SetMinMaxValues(0, 1)
+	bossresource:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 1, 1)
+	bossresource:SetPoint("BOTTOMRIGHT", frame, -1, 1)
+	frame.resourcebar = bossresource
+
+	local overlay = CreateFrame("Frame", nil, frame.hpbar)
 	overlay:SetAllPoints(true)
 	overlay:SetFrameLevel(bosshealth:GetFrameLevel() + 5)
 	frame.overlay = overlay
 
 	local name = overlay:CreateFontString(nil, "OVERLAY")
-	name:SetPoint("TOPLEFT", overlay, "TOPLEFT", 4, 0)
-	name:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -60, 0)
+	name:SetPoint("TOPLEFT", overlay, 4, 0)
+	name:SetPoint("BOTTOMRIGHT", overlay, -60, 0)
 	name:SetWordWrap(false)
 	name:SetJustifyH("LEFT")
 	name:SetJustifyV("MIDDLE")
 	frame.bossname = name
 
 	local hp = overlay:CreateFontString(nil, "OVERLAY")
-	hp:SetPoint("TOPLEFT", overlay, "TOPRIGHT", -150, 0) -- Adjusted position
-	hp:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -4, 0)
+	hp:SetPoint("TOPLEFT", overlay, -150, 0) -- Adjusted position
+	hp:SetPoint("BOTTOMRIGHT", overlay, -4, 0)
 	hp:SetWordWrap(false)
 	hp:SetJustifyH("RIGHT")
 	hp:SetJustifyV("MIDDLE")
@@ -55,8 +65,32 @@ function HealthBar:New(parent, width, height)
 
 	frame:OnMediaUpdate()
 	frame:Reset()
+	frame:OnSizeUpdated()
+
+	--frame:SetScript("OnMouseUp", function (self, button)
+	--	if button == "LeftButton" then
+	--		self:OnClicked()
+	--	end
+	--end)
 
 	return frame
+end
+
+function prototype:UpdateSizes(newW, newH, newResourceH)
+	self.baseW = newW
+	self.baseH = newH
+	self.baseResourceH = newResourceH
+	self:OnSizeUpdated()
+end
+
+function prototype:OnSizeUpdated()
+	local resourceHeight = self.hasResourceBar and self.baseResourceH or 0
+
+	self:SetWidth(self.baseW)
+	self:SetHeight(self.baseH + resourceHeight)
+
+	self.hpbar:SetPoint("BOTTOMRIGHT", self, -1, 1 + resourceHeight)
+	self.resourcebar:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 1, 1 + resourceHeight)
 end
 
 function prototype:Reset()
@@ -73,7 +107,7 @@ function prototype:Reset()
 	self.unitMarker = nil
 	self:Hide()
 
-	UpdateBarColor(self)
+	UpdateHPBarColor(self)
 end
 
 function prototype:SetHealth(unitHealth, unitMaxHealth)
@@ -102,13 +136,20 @@ function prototype:SetHealthFractionText(fraction, text)
 	self.healthFrac = fraction
 	self.hptext:SetText(text)
 	self.hpbar:SetValue(fraction)
-	UpdateBarColor(self)
+	UpdateHPBarColor(self)
+end
+
+function prototype:SetResource(unitPower, unitPowerMax)
+	if not self.hasResourceBar then return end
+	local fraction = unitPowerMax > 0 and unitPower / unitPowerMax or 0
+	self.resourcebar:SetValue(fraction)
 end
 
 function prototype:SetActive(isActive)
 	if self.barActive ~= isActive then
 		self.barActive = isActive
-		UpdateBarColor(self)
+		UpdateHPBarColor(self)
+		UpdateResourceBarColor(self)
 	end
 end
 
@@ -134,33 +175,31 @@ function prototype:Activate(npcGuid, sourceUnitId, trackingSettings, uniqueId, b
 	self:SetActive(true)
 	self.targetGuid = npcGuid
 	self.isTracked = true
+	self.lastSeenUnitId = sourceUnitId
 	self.trackingSettings = trackingSettings
 	self.uniqueId = uniqueId
 	self.bossId = bossId -- Nil if not a boss, or int
 
-	-- Track spawn time
-	-- local _, _, _, _, _, _, spawnUID = strsplit("-", npcGuid)
-	-- local spawnEpoch = GetServerTime() - (GetServerTime() % 2^23)
-	-- local spawnEpochOffset = bit.band(tonumber(string.sub(spawnUID, 5), 16), 0x7fffff)
-	-- self.spawnIndex = bit.rshift(bit.band(tonumber(string.sub(spawnUID, 1, 5), 16), 0xffff8), 3)
-	-- self.spawnTime = spawnEpoch + spawnEpochOffset
-
 	self.unitNameBase = UnitName(sourceUnitId)
-	-- Disabled as I think this might cause more confusion than it's worth
-	-- Because the # might not be identical between raid players, and someone calling "attack #3" would be different for different players
-	--[[if self.uniqueId > 1 then
-		self.bossname:SetText(format("%s #%d", unitName, self.uniqueId))
-	else
-		self.bossname:SetText(unitName)
-	end]]--
-
 	self.bossname:SetText(self:GetUnitName())
+
+	-- Resource bars should set a single initial color based on resource type
+	self.hasResourceBar = trackingSettings ~= nil and trackingSettings.resourceBar ~= nil and trackingSettings.resourceBar
+	if self.hasResourceBar then 
+		local powerType, powerToken, overrideR, overrideG, overrideB = UnitPowerType(sourceUnitId)
+		self.resourceBarColor = GetPowerBarColor(powerType)
+		if overrideR ~= nil then self.resourceBarColor.r = overrideR end
+		if overrideG ~= nil then self.resourceBarColor.g = overrideG end
+		if overrideB ~= nil then self.resourceBarColor.b = overrideB end
+		UpdateResourceBarColor(self)
+	end
+
+	-- Ensure size is correct based on resource bar existence
+	self:OnSizeUpdated()
+
+	-- Initial data update
 	self:UpdateFrom(sourceUnitId)
 end
-
---function prototype:AppendNameUID()
--- 	self.bossname:SetText(format("%s #%d", self.bossName:GetText(), self.uniqueId))
---end
 
 function prototype:UpdateFrom(unitId)
 	-- Is there a dev-only assert we can use? 
@@ -178,7 +217,9 @@ function prototype:UpdateFrom(unitId)
 		end
 	end
 
+	local regainedTracking = self.isTracked == false
 	self.isTracked = true
+	self.lastSeenUnitId = unitId
 	self:CancelCleanup("lost")
 
 	local unitDead = UnitIsDead(unitId)
@@ -202,6 +243,14 @@ function prototype:UpdateFrom(unitId)
 	if not self.unitDead then
 		local unitHP, unitHPMax = UnitHealth(unitId), UnitHealthMax(unitId)
 		self:SetHealth(unitHP, unitHPMax)
+
+		-- Update resource value if applicable
+		if self.hasResourceBar then
+			if regainedTracking then UpdateResourceBarColor(self) end
+
+			local powerCur, powerMax = UnitPower(unitId), UnitPowerMax(unitId)
+			self:SetResource(powerCur, powerMax)
+		end
 	end
 end
 
@@ -211,7 +260,8 @@ end
 
 function prototype:LostTracking()
 	self.isTracked = false
-	UpdateBarColor(self)
+	UpdateHPBarColor(self)
+	UpdateResourceBarColor(self)
 
 	if self.trackingSettings ~= nil and self.trackingSettings.expireAfterTrackingLoss ~= nil then
 		self:ScheduleCleanup("lost", self.trackingSettings.expireAfterTrackingLoss)
@@ -261,10 +311,6 @@ function prototype:GetPriority()
 	return 1
 end
 
---[[function prototype:GetSpawnTime()
-	return self.spawnTime, self.spawnIndex
-end]]--
-
 function prototype:GetBarUID()
 	return self.uniqueId
 end
@@ -273,6 +319,7 @@ function prototype:OnMediaUpdate()
 	local fontMedia = BHB:GetFontMedia()
 	local fontSize = BHB:GetFontSize()
 	self.hpbar:SetStatusBarTexture(BHB:GetBarTextureMedia())
+	self.resourcebar:SetStatusBarTexture(BHB:GetBarTextureMedia())
 	self.bossname:SetFont(fontMedia, fontSize, "OUTLINE")
 	self.hptext:SetFont(fontMedia, fontSize, "OUTLINE")
 
@@ -281,11 +328,21 @@ function prototype:OnMediaUpdate()
 	--self.hptext:SetPoint("TOPLEFT", self.bossname, "TOPRIGHT", 4, 0) -- Adjusted position
 end
 
-function UpdateBarColor(element)
+function UpdateHPBarColor(element)
 	if element.isTracked then
 		local r, g, b = element.healthFrac > 0.5 and ((1.0 - element.healthFrac) * 2.0) or 1.0, element.healthFrac > 0.5 and 1.0 or (element.healthFrac * 2.0), 0.0
 		element.hpbar:SetStatusBarColor(r, g, b)
 	else
 		element.hpbar:SetStatusBarColor(0.75, 0.75, 0.75) -- TODO: Expose to settings
+	end
+end
+
+function UpdateResourceBarColor(element)
+	if element.hasResourceBar then
+		if element.isTracked then
+			element.resourcebar:SetStatusBarColor(element.resourceBarColor.r, element.resourceBarColor.g, element.resourceBarColor.b)
+		else
+			element.resourcebar:SetStatusBarColor(0.5 + (element.resourceBarColor.r * 0.25), 0.5 + (element.resourceBarColor.g * 0.25), 0.5 + (element.resourceBarColor.b * 0.25))
+		end
 	end
 end

@@ -12,3 +12,4 @@ embeds.xml
 # Main files
 main.lua
 healthbar.lua
+powerbarcolors.lua

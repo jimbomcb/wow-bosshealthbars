@@ -1,4 +1,4 @@
--- TODO:
+-- Maybe TODO:
 -- Clickable bars
 -- Resource bars (deathwhisper, Saurfang)
 -- Default to Clean/Expressway
@@ -6,28 +6,31 @@
 -- See how DBM does auto marking of blood beasts to get them to add in the same order (bind onto SUMMON combat log event)
 -- TTK
 -- MaxBars (max per NPC?)
+-- Names can be unknown when picked up via nameplates
 
 local BossHealthBar = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
 _G.BHB = BossHealthBar
 
-local FEATURE_BossUnits = true
+local FEATURE_BossUnits = false -- NOCHECKIN
 local DEBUG_PRINT = function (...)
 	if BossHealthBar.db.profile.debugMode then
 		print("BHB DEBUG:")
 		print(...)
 	end
 end
+_G.BHB.DEBUG_PRINT = DEBUG_PRINT
 
 local LSM = LibStub("LibSharedMedia-3.0")
 
 local defaultSettings = {
 	profile = {
-		ver = 1,
+		ver = 2,
 		barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
 		hideAnchorWhenLocked = false,
 		growUp = false,
 		barWidth = 260,
 		barHeight = 22,
+		resourceBarHeight = 4,
 		resetBarsOnEncounterFinish = false,
 		showTargetMarkerIcons = true,
 		reverseOrder = false,
@@ -35,7 +38,9 @@ local defaultSettings = {
 		font = "Friz Quadrata TT",
 		fontSize = 12,
 		healthDisplayOption = "PercentageDetailed", -- Default: Percentage. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
-		debugMode = false
+		debugMode = false,
+		leftOffset = 0.5,
+		topOffset = 0.8
 	}
 }
 
@@ -187,6 +192,18 @@ local options = {
 					step = 1,
 					set = "SetBarHeight",
 					get= "GetBarHeight",
+					width = "full"
+				},
+				resourceBarHeight = {
+					order = 12,
+					name = "Resource Bar Height",
+					desc = "Height of each boss health bar, Default:  " .. tostring(defaultSettings.profile.resourceBarHeight),
+					type = "range",
+					min = 0,
+					softMax = 75,
+					step = 1,
+					set = "SetResourceBarHeight",
+					get= "GetResourceBarHeight",
 					width = "full"
 				},
 				barTexture = {
@@ -345,7 +362,7 @@ local encounterMap = {
 		[3] = { id = 37973 }, -- Taladram (R)
 	}},
 	[1096] = { npcs = { -- Deathbringer Saurfang
-		[1] = { id = 37813 }, -- Saurfang
+		[1] = { id = 37813, resourceBar = true }, -- Saurfang
 		[2] = { id = 38508, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- BloodBeasts
 	}},
 	[1097] = { npcs = { -- Festergut
@@ -359,15 +376,15 @@ local encounterMap = {
 	[1099] = { npcs = { -- Gunship
 	}},
 	[1100] = { npcs = { -- Lady Deathwhisper
-		[1] = { id = 36855 }, -- Deathwhisper
+		[1] = { id = 36855, resourceBar = true }, -- Deathwhisper
 	}},
 	[1101] = { npcs = { -- Lord Marrowgar
 		[1] = { id = 36612 }, -- Marrowgar
 		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
 	}},
 	[1102] = { npcs = { -- Putricide
-		[1] = { id = 37697, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Volatile Ooze
-		[2] = { id = 36678 }, -- Putricide
+		[1] = { id = 36678 }, -- Putricide
+		[2] = { id = 37697, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Volatile Ooze
 		[3] = { id = 37562, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Gas Cloud
 	}},
 	[1103] = { npcs = { -- Queen Lanathel
@@ -382,7 +399,7 @@ local encounterMap = {
 	}},
 	[1106] = { npcs = { -- Lich King
 		[1] = { id = 36597 }, -- Lich King
-		[2] = { id = 36823, expireAfterTrackingLoss = 10.0 }, -- Terenas Menethil
+		[2] = { id = 39217, expireAfterTrackingLoss = 10.0 }, -- Terenas Menethil
 		[3] = { id = 36824, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Spirit Warden
 		[4] = { id = 36609, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Val'kyr
 		[5] = { id = 36633, expireAfterDeath = 1.0, expireAfterTrackingLoss = 10.0 }, -- Ice Orb
@@ -439,6 +456,16 @@ local encounterMap = {
 	},
 }
 
+local unitIdList = { "target", "targettarget", "focus", "focustarget", "mouseover", "mouseovertarget", "nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
+	"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
+	"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
+	"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40",
+	"raid1target", "raid2target", "raid3target", "raid4target", "raid5target", "raid6target", "raid7target", "raid8target", "raid9target", "raid10target",
+	"raid11target", "raid12target", "raid13target", "raid14target", "raid15target", "raid16target", "raid17target", "raid18target", "raid19target", "raid20target",
+	"raid21target", "raid22target", "raid23target", "raid24target", "raid25target", "raid26target", "raid27target", "raid28target", "raid29target", "raid30target",
+	"raid31target", "raid32target", "raid33target", "raid34target", "raid35target", "raid36target", "raid37target", "raid38target", "raid39target", "raid40target"
+}
+
 local function GetIDFromGuid(guid)
 	if string.sub(guid, 0, 8) ~= "Creature" and string.sub(guid, 0, 7) ~= "Vehicle" then return nil end
 	-- Parse out NPC ID from [unitType]-0-[serverID]-[instanceID]-[zoneUID]-[ID]-[spawnUID]
@@ -457,7 +484,10 @@ function BossHealthBar:OnInitialize()
 	self.db = LibStub("AceDB-3.0"):New("BossHealthBar", defaultSettings, true)
 	self.db.RegisterCallback(self, "OnProfileChanged", function(db, newProfile) self:RefreshConfig("change") end)
 	self.db.RegisterCallback(self, "OnProfileCopied", function(db, sourceProfile) self:RefreshConfig("copy") end)
-	self.db.RegisterCallback(self, "OnProfileReset", function(db) self:RefreshConfig("reset") end)
+	self.db.RegisterCallback(self, "OnProfileReset", function(db)
+		self.db = defaultSettings
+		self:RefreshConfig("reset")
+	end)
 
 	LibStub("AceConfig-3.0"):RegisterOptionsTable("BossHealthBar", options)
 	self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("BossHealthBar", "Boss Health Bars")
@@ -468,6 +498,7 @@ function BossHealthBar:OnInitialize()
 
 	self:RegisterEvent("ENCOUNTER_START", "OnEncounterStart")
 	self:RegisterEvent("ENCOUNTER_END", "OnEncounterEnd")
+	self:RegisterEvent("PLAYER_LOGIN", "OnPlayerLogin")
 
 	self:RegisterChatCommand("bhb", "OnSlashCommand")
 
@@ -478,7 +509,6 @@ function BossHealthBar:OnInitialize()
 	self.baseFrame:SetMovable(true)
 
 	self:UpdateBarLockState()
-	self:RestorePosition() -- Restore saved position
 
 	self.barPool = {} -- Pool of active bars given widgets are never destroyed
 	self.boundCL = false -- Are we actively bound to the combat log events
@@ -492,27 +522,6 @@ function BossHealthBar:OnInitialize()
 		self.contextMenu:SetPoint("TOPLEFT", 0, -40)
 		UIDropDownMenu_Initialize(self.contextMenu, DropdownInit_ContextMenu, "MENU")
 		self.contextMenu:Hide()
-	end
-
-	-- Anchor bar
-	self.anchorBar = self:CreateAnchor()
-	self.anchorBar:SetPoint("TOPLEFT", 0, 0)
-
-	-- Bind for media updates, any later-loading addons will call this
-	LSM.RegisterCallback(self, "LibSharedMedia_SetGlobal", "OnMediaUpdate")
-	LSM.RegisterCallback(self, "LibSharedMedia_Registered", "OnMediaUpdate")
-
-	-- Either handle an encounter being in progress, otherwise wait for one to start
-	if IsEncounterInProgress() then
-		DEBUG_PRINT("Encounter already in progress, trying to find encounter ID...")
-		self:TryFindActiveEncounter()
-	else
-		DEBUG_PRINT("No encounter in progress, waiting for start.")
-		self:WaitingForEncounter()
-	end
-
-	if not FEATURE_BossUnits then
-		DEBUG_PRINT("WARNING: BossUnits feature disabled, stock boss health bars will not be shown.")
 	end
 end
 
@@ -535,10 +544,7 @@ function BossHealthBar:WaitingForEncounter()
 	self.encounterSize = 25
 	self.npcCount = {}
 
-	for idx, bar in pairs(self.barPool) do
-		bar:Reset()
-	end
-
+	self:ResetBarPool()
 	self:UpdateAnchorVisibility()
 end
 
@@ -562,6 +568,7 @@ end
 function BossHealthBar:TickEncounterSearch()
 	-- No ongoing encounter? Nothing to find.
 	if not IsEncounterInProgress() then
+		DEBUG_PRINT("Cancelling active search, no encounter in progress")
 		self:CancelActiveEncounterSearch()
 		self:WaitingForEncounter()
 		return
@@ -569,6 +576,7 @@ function BossHealthBar:TickEncounterSearch()
 
 	-- Encounter already active? Nothing to find.
 	if self.encounterActive then
+		DEBUG_PRINT("Cancelling active encounter search, has encounter active")
 		self:CancelActiveEncounterSearch()
 		return
 	end
@@ -578,16 +586,10 @@ function BossHealthBar:TickEncounterSearch()
 	if difficultyID == nil then difficultyID = 0 end
 	if maxPlayers == nil then maxPlayers = 25 end
 
-	-- We're in an active encounter and want to determine the encounter ID from a targeted NPC ID in the encounterMap
-	local possibleTargets = { "target", "mouseover", "focus" }
-	for i=1, maxPlayers do
-		table.insert(possibleTargets, "raid" .. i .. "target")
-	end
-
 	for encounterID, encounterInfo in pairs(encounterMap) do
 		for _, npcInfo in pairs(encounterInfo.npcs) do
-			for _, target in pairs(possibleTargets) do
-				local guid, npcID = GetNPCInfo(target)
+			for _, unitId in pairs(unitIdList) do
+				local guid, npcID = GetNPCInfo(unitId)
 				if npcID == npcInfo.id then
 					self:OnEncounterStart(nil, encounterID, dungeonName, difficultyID, maxPlayers)
 					return
@@ -597,6 +599,7 @@ function BossHealthBar:TickEncounterSearch()
 	end
 	
 	-- Unknown encounter, just try fall back to default boss frames
+	DEBUG_PRINT("No encounter data found with any tracked NPCs, falling back to default boss frames")
 	self:OnEncounterStart(nil, -1, dungeonName, difficultyID, maxPlayers)
 end
 
@@ -663,9 +666,11 @@ function BossHealthBar:UpdateBarLockState()
 		self.baseFrame:EnableMouse(true)
 		self.baseFrame:RegisterForDrag("LeftButton")
 		self.baseFrame:SetScript("OnDragStart", self.baseFrame.StartMoving)
-		self.baseFrame:SetScript("OnDragStop", function()
+		self.baseFrame:SetScript("OnDragStop", function(...)
 			self.baseFrame:StopMovingOrSizing()
+			--DEBUG_PRINT("OnDragEnd", self.baseFrame:GetNumPoints(), self.baseFrame:GetPoint(1), self.baseFrame:GetLeft(), self.baseFrame:GetTop())
 			BossHealthBar:SavePosition()
+			BossHealthBar:RestorePosition()
 		end)
 	end
 
@@ -683,17 +688,42 @@ end
 function BossHealthBar:RefreshConfig(source)
 	self:RestorePosition()
 
-	-- TODO: Rethink how we apply settings given what needs to change switching profiles
 	self:SetBarLockState(nil, self:GetBarLockState())
 	self:SetGrowUp(nil, self:GetGrowUp())
 	self:SetHideAnchorWhenLocked(nil, self:GetHideAnchorWhenLocked())
-	self:OnSizeChanged()
+	--self:OnSizeChanged()
+	self:OnBarMediaUpdate()
 end
 
 function BossHealthBar:OnEnable()
 end
 
 function BossHealthBar:OnDisable()
+end
+
+function BossHealthBar:OnPlayerLogin()
+	-- Anchor bar
+	self.anchorBar = self:CreateAnchor()
+	self.anchorBar:SetPoint("TOPLEFT", 0, 0)
+
+	self:RestorePosition()
+
+	-- Either handle an encounter being in progress, otherwise wait for one to start
+	if IsEncounterInProgress() then
+		DEBUG_PRINT("Encounter already in progress, trying to find encounter ID...")
+		self:TryFindActiveEncounter()
+	else
+		DEBUG_PRINT("No encounter in progress, waiting for start.")
+		self:WaitingForEncounter()
+	end
+
+	if not FEATURE_BossUnits then
+		DEBUG_PRINT("WARNING: BossUnits feature disabled, stock boss health bars will not be shown.")
+	end
+
+	-- Bind for media updates, any later-loading addons will call this
+	LSM.RegisterCallback(self, "LibSharedMedia_SetGlobal", "OnMediaUpdate")
+	LSM.RegisterCallback(self, "LibSharedMedia_Registered", "OnMediaUpdate")
 end
 
 function BossHealthBar:OnEncounterStart(_, encounterId, encounterName, difficultyID, groupSize)
@@ -765,7 +795,7 @@ function BossHealthBar:SetGrowUp(info, state)
 	self.db.profile.growUp = state
 
 	-- Perform the order change
-	self:SortActiveBars()
+	self:RestorePosition()
 end
 
 function BossHealthBar:GetGrowUp(info)
@@ -812,23 +842,34 @@ function BossHealthBar:GetBarHeight(info)
 	return self.db.profile.barHeight
 end
 
+function BossHealthBar:SetResourceBarHeight(info, height)
+	self.db.profile.resourceBarHeight = height
+	self:OnSizeChanged()
+end
+
+function BossHealthBar:GetResourceBarHeight(info)
+	if self.db.profile.resourceBarHeight == nil then return defaultSettings.profile.resourceBarHeight end
+	return self.db.profile.resourceBarHeight
+end
+
 function BossHealthBar:OnSizeChanged()
 	-- Update relative frame sizes
 	local saneW = max(10, self:GetBarWidth())
 	local saneH = max(10, self:GetBarHeight())
+	local saneResourceH = self:GetResourceBarHeight()
+
 	self.baseFrame:SetWidth(saneW)
 	self.baseFrame:SetHeight(saneH)
-	self.anchorBar:SetWidth(saneW)
+	self.anchorBar:SetWidth(10)
 	self.anchorBar:SetHeight(saneH)
 
 	-- TODO: Can we better handle the layout of the frame to not require this? Still figuring out the frame setup	
-	self.anchorBar.nameText:SetPoint("BOTTOMRIGHT", self.anchorBar, "BOTTOMRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
-	self.anchorBar.statusText:SetPoint("TOPLEFT", self.anchorBar, "TOPRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
+	--self.anchorBar.nameText:SetPoint("BOTTOMRIGHT", self.anchorBar, "BOTTOMRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
+	--self.anchorBar.statusText:SetPoint("TOPLEFT", self.anchorBar, "TOPRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
 
 	-- Pooled bars
 	for idx, bar in pairs(self.barPool) do
-		bar:SetWidth(saneW)
-		bar:SetHeight(saneH)
+		bar:UpdateSizes(saneW, saneH, saneResourceH)
 	end
 
 	-- Re-sort given change in vertical offset
@@ -836,18 +877,24 @@ function BossHealthBar:OnSizeChanged()
 end
 
 function BossHealthBar:SavePosition()
-	local point, relativeTo, relativePoint, xOfs, yOfs = self.baseFrame:GetPoint(1)
-	self.db.profile.hasPos = true
-	self.db.profile.rootPoint = point
-	self.db.profile.rootX = xOfs
-	self.db.profile.rootY = yOfs
+	self.db.profile.hasPosV2 = true
+
+	-- Use the top of the frame in grow-down, use the bottom in grow-up
+	local finalY = self.db.profile.growUp and self.baseFrame:GetBottom() or self.baseFrame:GetTop()
+	self.db.profile.topOffset = finalY / UIParent:GetHeight()
+	self.db.profile.leftOffset = self.baseFrame:GetLeft() / UIParent:GetWidth()
 end
 
 function BossHealthBar:RestorePosition()
 	self.baseFrame:ClearAllPoints()
 
-	if self.db.profile.hasPos ~= nil and self.db.profile.hasPos then
-		self.baseFrame:SetPoint(self.db.profile.rootPoint, "UIParent", self.db.profile.rootX, self.db.profile.rootY)
+	if self.db.profile.hasPosV2 ~= nil and self.db.profile.hasPosV2 then
+		local finalPosX = floor(UIParent:GetWidth() * self.db.profile.leftOffset)
+		local finalPosY = floor(UIParent:GetHeight() * self.db.profile.topOffset)
+		local translatedY = self.db.profile.growUp and finalPosY or -(GetScreenHeight() - finalPosY)
+		local anchorPoint = self.db.profile.growUp and "BOTTOMLEFT" or "TOPLEFT"
+		--DEBUG_PRINT("Attached to anchor point", anchorPoint, "at", finalPosX, translatedY, "from", self.db.profile.leftOffset, self.db.profile.topOffset)
+		self.baseFrame:SetPoint(anchorPoint, "UIParent", finalPosX, translatedY)
 	else
 		-- Store initial position
 		self.baseFrame:SetPoint("TOP", 0, -100)
@@ -974,10 +1021,7 @@ function BossHealthBar:InitForEncounter(encounterData) -- encounterData is null 
 		self:EndActiveEncounter()
 	end
 
-	-- Reset all bars
-	for idx, bar in pairs(self.barPool) do
-		bar:Reset()
-	end
+	self:ResetBarPool()
 
 	-- Hook onto CLEU for UNIT_KILLED
 	if not self.boundCL then
@@ -1082,10 +1126,10 @@ function BossHealthBar:TickActiveEncounter()
 						local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
 						self.npcCount[npcID] = npcCount + 1
 
-						-- Try and find the tracking settings for an NPC of this ID, but it could be nil
+						-- Try and find the tracking settings for an NPC of this ID, but it could be nil for boss units that we don't have mapped above
 						local trackingSettings = self.encounterInfo.trackedIDs[npcID]
-
-						local newBar = self:GetNewBar()
+						local isResourceBar = trackingSettings ~= nil and trackingSettings.resourceBar ~= nil and trackingSettings.resourceBar
+						local newBar = self:GetNewBar(isResourceBar)
 						newBar:Activate(npcGuid, unitId, trackingSettings, npcCount, i)
 						newBar:Show()
 
@@ -1109,38 +1153,12 @@ function BossHealthBar:TickActiveEncounter()
 		targetedUnitArray[k] = nil
 	end
 
-	local unitGuid = UnitGUID("target")
-	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "target" end
+	local unitGuid = nil
 
-	unitGuid = UnitGUID("targettarget")
-	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "targettarget" end
-
-	unitGuid = GetNPCInfo("focus")
-	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "focus" end
-
-	unitGuid = UnitGUID("focustarget")
-	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "focustarget" end
-
-	unitGuid = GetNPCInfo("mouseover")
-	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "mouseover" end
-
-	unitGuid = GetNPCInfo("mouseovertarget")
-	if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "mouseovertarget" end
-
-	-- Iterate nameplates
-	for _, nameplateUnitId in pairs({ "nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
-		"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
-		"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
-		"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40"
-	}) do
-		unitGuid = GetNPCInfo(nameplateUnitId)
-		if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = nameplateUnitId end
-	end
-
-	-- Iterate the n raid players targets
-	for i=1, self.encounterSize do
-		unitGuid = GetNPCInfo("raid" .. i .. "target")
-		if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = "raid" .. i .. "target" end
+	-- Iterate all the possible UnitIDs in unitIdList
+	for _, unitId in pairs(unitIdList) do
+		unitGuid = GetNPCInfo(unitId)
+		if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = unitId end
 	end
 
 	-- Find desired NPCs to track from our target set
@@ -1163,7 +1181,7 @@ function BossHealthBar:TickActiveEncounter()
 					--end
 
 					local trackingSettings = self.encounterInfo.trackedIDs[npcID]
-					local newBar = self:GetNewBar()
+					local newBar = self:GetNewBar(trackingSettings.resourceBar)
 					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, npcCount, nil)
 					newBar:Show()
 
@@ -1220,14 +1238,14 @@ function BossHealthBar:HasActiveBar()
 	return false
 end
 
-function BossHealthBar:GetNewBar()
+function BossHealthBar:GetNewBar(isResourceBar)
 	local lastIdx = 0
 	for idx, bar in pairs(self.barPool) do
 		if not bar:IsActive() then return bar end
 		lastIdx = idx
 	end
 
-	local baseBar =_G.BHB.HealthBar:New(self.baseFrame, self:GetBarWidth(), self:GetBarHeight())
+	local baseBar =_G.BHB.HealthBar:New(self.baseFrame, self:GetBarWidth(), self:GetBarHeight(), self:GetResourceBarHeight())
 	self.barPool[lastIdx + 1] = baseBar
 	return baseBar
 end
@@ -1249,12 +1267,35 @@ function BossHealthBar:SortActiveBars()
 		-- Fall back to bar spawn order
 		return a:GetBarUID() < b:GetBarUID()
 	end)
+	
+	--local verticalOffset = 0
+	--if self.db.profile.reverseOrder then
+	--	for i = #activeBars, 1, -1 do
+	--		activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset))
+	--		verticalOffset = verticalOffset + activeBars[i]:GetHeight()
+	--	end
+	--else
+	--	for i = 1, #activeBars do
+	--		activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset))
+	--		verticalOffset = verticalOffset + activeBars[i]:GetHeight()
+	--	end
+	--end
 
-	local barVerticalOffset = (self:GetBarHeight() * (self.db.profile.growUp and 1 or -1))
-	for k, v in ipairs(activeBars) do
-		local individualBarIndex = self.db.profile.reverseOrder and ((#(activeBars) - k)) or (k - 1) -- Invert index if we're reversing sort order
-		v:SetPoint("TOPLEFT", 0, individualBarIndex * barVerticalOffset)
+	local verticalOffset = 0
+	local heightScale = self.db.profile.growUp and -1 or 1
+	if self.db.profile.reverseOrder then
+		for i = #activeBars, 1, -1 do
+			activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset * heightScale))
+			verticalOffset = verticalOffset + activeBars[i]:GetHeight()
+		end
+	else
+		for i = 1, #activeBars do
+			activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset * heightScale))
+			verticalOffset = verticalOffset + activeBars[i]:GetHeight()
+		end
 	end
+
+	return verticalOffset
 end
 
 function BossHealthBar:UpdateStatus(msg, r, g, b, a)
@@ -1265,4 +1306,11 @@ function BossHealthBar:UpdateStatus(msg, r, g, b, a)
 			self.anchorBar.healthBar:SetStatusBarColor(r, g, b, a)
 		end
 	end
+end
+
+function BossHealthBar:ResetBarPool()
+	for idx, bar in pairs(self.barPool) do
+		bar:Hide()
+	end
+	self.barPool = {}
 end
