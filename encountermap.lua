@@ -114,55 +114,55 @@ Private.encounterMap = {
 
 	-- ICC
 
-	[1095] = { npcs = { -- Blood Council
-		[1] = { id = 37972 }, -- Keleseth (L)
-		[2] = { id = 37970 }, -- Valanar (M)
-		[3] = { id = 37973 }, -- Taladram (R)
+	[845] = { npcs = { -- Lord Marrowgar
+		[1] = { id = 36612 }, -- Marrowgar
+		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
 	}},
-	[1096] = { npcs = { -- Deathbringer Saurfang
+	[846] = { npcs = { -- Lady Deathwhisper
+		[1] = { id = 36855, resourceBar = true }, -- Deathwhisper
+	}},
+	[847] = { npcs = { -- Gunship
+	}},
+	[848] = { npcs = { -- Deathbringer Saurfang
 		[1] = { id = 37813, resourceBar = true }, -- Saurfang
 		[2] = { id = 38508, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- BloodBeasts
 	}},
-	[1097] = { npcs = { -- Festergut
+	[849] = { npcs = { -- Festergut
 		[1] = { id = 36626 }, -- Festergut
 		--[2] = { id = 36899, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Big Ooze
 		--[3] = { id = 36897, expireAfterDeath = 1.0, expireAfterTrackingLoss = 1.0 }, -- Little Ooze
 	}},
-	[1098] = { npcs = { -- Valithria
-		[1] = { id = 36789 }, -- Saurfang
+	[850] = { npcs = { -- Rotface
+		[1] = { id = 36627 }, -- Rotface
 	}},
-	[1099] = { npcs = { -- Gunship
-	}},
-	[1100] = { npcs = { -- Lady Deathwhisper
-		[1] = { id = 36855, resourceBar = true }, -- Deathwhisper
-	}},
-	[1101] = { npcs = { -- Lord Marrowgar
-		[1] = { id = 36612 }, -- Marrowgar
-		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
-	}},
-	[1102] = { npcs = { -- Putricide
+	[851] = { npcs = { -- Putricide
 		[1] = { id = 36678 }, -- Putricide
 		[2] = { id = 37697, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Volatile Ooze
 		[3] = { id = 37562, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Gas Cloud
 	}},
-	[1103] = { npcs = { -- Queen Lanathel
+	[852] = { npcs = { -- Blood Council
+		[1] = { id = 37972 }, -- Keleseth (L)
+		[2] = { id = 37970 }, -- Valanar (M)
+		[3] = { id = 37973 }, -- Taladram (R)
+	}},
+	[853] = { npcs = { -- Queen Lanathel
 		[1] = { id = 37955 }, -- Queen Lanathel
 	}},
-	[1104] = { npcs = { -- Rotface
-		[1] = { id = 36627 }, -- Rotface
+	[854] = { npcs = { -- Valithria
+		[1] = { id = 36789 }, -- Saurfang
 	}},
-	[1105] = { npcs = { -- Sindragosa
+	[855] = { npcs = { -- Sindragosa
 		[1] = { id = 36853 }, -- Sindragosa
 		--[2] = { id = 36980, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Ice Tomb
 	}},
-	[1106] = { npcs = { -- Lich King
+	[856] = { npcs = { -- Lich King
 		[1] = { id = 36597 }, -- Lich King
 		[2] = { id = 39217, expireAfterTrackingLoss = 10.0 }, -- Terenas Menethil
 		[3] = { id = 36824, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Spirit Warden
 		[4] = { id = 36609, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Val'kyr
 		[5] = { id = 36633, expireAfterDeath = 1.0, expireAfterTrackingLoss = 10.0 }, -- Ice Orb
 	}},
-	
+
 	-- Debug encounter
 	[0] = {
 		npcs = {
@@ -198,6 +198,10 @@ Private.encounterMap = {
 				id = 31139,
 				expireAfterTrackingLoss = 10.0
 			},
+			[11] = {
+				id = 31273,
+				expireAfterTrackingLoss = 5.0
+			},
 			[3] = {
 				id = 16128
 			},
@@ -222,7 +226,13 @@ Private.encounterMap = {
 			[10] = {
 				id = 31080,
 				resourceBar = true
-			}
+			},
+			[12] = {
+				id = 31146
+			},
+			[13] = {
+				id = 153285
+			},
 		}
 	},
 }

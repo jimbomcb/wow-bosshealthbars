@@ -25,9 +25,10 @@ local defaultSettings = {
 		ver = 0,
 		barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
 		hideAnchorWhenLocked = false,
+		scale = 1.0,
 		barWidth = 260,
 		barHeight = 22,
-		maxBars = 5,
+		maxBars = 6,
 		powerBarFraction = 0.18,
 		resetBarsOnEncounterFinish = false,
 		showTargetMarkerIcons = true,
@@ -159,6 +160,19 @@ local options = {
 					width = "full"
 				},
 
+				scale = {
+					order = 8,
+					name = "Scale",
+					desc = "Overall boss health bar widget scaling, Default: " .. tostring(defaultSettings.profile.scale),
+					type = "range",
+					softMin = 0.3,
+					min = 0.00001,
+					softMax = 2.0,
+					step = 0.01,
+					set = "SetScale",
+					get= "GetScale",
+					width = "full"
+				},
 				barWidth = {
 					order = 10,
 					name = "Bar Width",
@@ -307,6 +321,7 @@ function BHB:OnInitialize()
 	self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnRegenEnabled")
 
 	self:RegisterMessage("BHB_SIZE_CHANGED")
+	self:RegisterMessage("BHB_SCALE_CHANGED")
 	self:RegisterMessage("BHB_MAXBARS_CHANGED")
 	self:RegisterMessage("BHB_LOCK_STATE_CHANGED")
 	self:RegisterMessage("BHB_REVERSE_CHANGED")
@@ -592,6 +607,16 @@ function BHB:GetHideAnchorWhenLocked(info)
 	return BHB.config.profile.hideAnchorWhenLocked
 end
 
+function BHB:SetScale(info, scale)
+	BHB.config.profile.scale = scale
+	self:SendMessage("BHB_SCALE_CHANGED")
+end
+
+function BHB:GetScale()
+	if BHB.config.profile.scale == nil then return defaultSettings.profile.scale end
+	return BHB.config.profile.scale
+end
+
 function BHB:SetBarWidth(info, width)
 	BHB.config.profile.barWidth = width
 	self:SendMessage("BHB_SIZE_CHANGED")
@@ -659,6 +684,12 @@ end
 function BHB:BHB_SIZE_CHANGED()
 	if self.anchorFrame ~= nil then
 		self.anchorFrame:BHB_SIZE_CHANGED()
+	end
+end
+
+function BHB:BHB_SCALE_CHANGED()
+	if self.anchorFrame ~= nil then
+		self.anchorFrame:BHB_SCALE_CHANGED()
 	end
 end
 

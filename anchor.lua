@@ -64,6 +64,7 @@ function prototype:Initialize()
 
     self:BHB_SIZE_CHANGED() -- Initial size
     self:BHB_MAXBARS_CHANGED()
+	self:BHB_SCALE_CHANGED() -- Initial scale
 
 	self:InitChildBars()
 end
@@ -105,6 +106,18 @@ function prototype:BHB_MAXBARS_CHANGED()
 	self:InitChildBars() -- Ensure we have any active bars
 end
 
+function prototype:BHB_SCALE_CHANGED()
+	if InCombatLockdown() then
+		if not self.regenRestoreQueued["BHB_SCALE_CHANGED"] then
+			BHB:Print("Cannot rescale bars in combat, will resize after combat.")
+			self.regenRestoreQueued["BHB_SCALE_CHANGED"] = true
+		end
+		return
+	end
+
+	self:SetScale(BHB:GetScale())
+end
+
 function prototype:BHB_LOCK_STATE_CHANGED()
 	self:UpdateDragInput()
 end
@@ -124,14 +137,9 @@ end
 function prototype:OnRegenEnabled()
 	-- Re-enable any queued regen events
 	for k,v in pairs(self.regenRestoreQueued) do
-		if k == "BHB_SIZE_CHANGED" then
-			Private:DEBUG_PRINT("Restoring BHB_SIZE_CHANGED")
-			self:BHB_SIZE_CHANGED()
-		end
-		if k == "BHB_MAXBARS_CHANGED" then	
-			Private:DEBUG_PRINT("Restoring BHB_MAXBARS_CHANGED")
-			self:BHB_MAXBARS_CHANGED()
-		end
+		-- Execute the function named K on self
+		Private:DEBUG_PRINT("Restoring " .. k)
+		self[k](self)
 	end
 end
 
@@ -157,7 +165,7 @@ end
 
 function prototype:InitChildBar(i)
 	local offsetIdx = i - 1
-	local bar = BHB.HealthBar:New(self, BHB:GetBarWidth(), BHB:GetBarHeight(), 0)
+	local bar = BHB.HealthBar:New(i, self, BHB:GetBarWidth(), BHB:GetBarHeight(), 0)
 	bar:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -BHB:GetBarHeight() * offsetIdx)
 	return bar
 end
@@ -173,8 +181,9 @@ function prototype:UpdateFromTracker(tracker)
 
 		if trackedUnit ~= nil then
 			bar:UpdateTrackedUnit(trackedUnit)
-		else
-			--bar:ClearTrackedUnit() TODO
+		elseif bar:IsActive() then
+			Private:DEBUG_PRINT("No tracked unit for bar " .. i .. ", hiding bar.")
+			bar:Reset()
 		end
 	end
 end

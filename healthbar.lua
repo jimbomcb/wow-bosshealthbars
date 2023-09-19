@@ -17,10 +17,11 @@ local ICON_LIST = {
 	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:",
 }
 
-function HealthBar:New(parent, width, height, resourceHeight)
+function HealthBar:New(idx, parent, width, height, resourceHeight)
 	local frame = CreateFrame("Frame", "BossHealthBar", parent)
 	for k,v in pairs(prototype) do frame[k] = v end -- Copy in prototype methods
 
+	frame.barIndex = idx
 	frame.baseW = width
 	frame.baseH = height
 	frame.baseResourceH = resourceHeight
@@ -104,10 +105,7 @@ function prototype:UpdateResourceBarPoints()
 end
 
 function prototype:Reset()
-	self.barActive = false
-	self.targetGuid = nil
-
-	-- RESET AFTER ENCOUNTER TODO
+	self:SetActive(false)
 end
 
 function prototype:SetHealth(unitHealth, unitMaxHealth)
@@ -130,14 +128,14 @@ function prototype:SetHealth(unitHealth, unitMaxHealth)
 	elseif healthDisplayOption == "TotalRemaining" then
 		self:SetHealthFractionText(fraction, format("%d/%d", unitHealth, unitMaxHealth))
 	end
-	
-	self:UpdateHPBarColor(fraction)
 end
 
 function prototype:SetHealthFractionText(fraction, text)
 	self.healthFrac = fraction
 	self.hptext:SetText(text)
 	self.hpbar:SetValue(fraction)
+	
+	self:UpdateHPBarColor()
 end
 
 function prototype:SetResource(unitPower, unitPowerMax)
@@ -146,8 +144,33 @@ function prototype:SetResource(unitPower, unitPowerMax)
 	self.powerbar:SetValue(fraction)
 end
 
+-- Overall bar active state, an inactive bar is not representing anything
 function prototype:IsActive()
 	return self.barActive
+end
+
+function prototype:SetActive(isActive)
+	if self.barActive == isActive then return end
+	self.barActive = isActive
+
+	if isActive then
+		Private:DEBUG_PRINT("Bar " .. self.barIndex .. " activated")
+	else
+		Private:DEBUG_PRINT("Bar " .. self.barIndex .. " deactivated")
+		self.unitTracked = false
+		self:ResetBarVisualState()
+	end
+end
+
+-- A unit might have a last-known health value but is not currently tracked, the bar will be active but not tracked
+function prototype:IsTrackingUnit()
+	return self.unitTracked
+end
+
+-- Called on boot and when we want to reset the bar visual state
+function prototype:ResetBarVisualState()
+	self.bossname:SetText("Boss Health Bar #" .. self.barIndex)
+	self:SetHealthFractionText(1.0)
 end
 
 --function prototype:GetUnitName()
@@ -274,9 +297,9 @@ function prototype:OnMediaUpdate()
 	self.hptext:SetFont(fontMedia, fontSize, "OUTLINE")
 end
 
-function prototype:UpdateHPBarColor(healthFrac)
-	if self:IsActive() then
-		self.hpbar:SetStatusBarColor(healthFrac > 0.5 and ((1.0 - healthFrac) * 2.0) or 1.0, healthFrac > 0.5 and 1.0 or (healthFrac * 2.0), 0.0, 1.0)
+function prototype:UpdateHPBarColor()
+	if self:IsTrackingUnit() then
+		self.hpbar:SetStatusBarColor(self.healthFrac > 0.5 and ((1.0 - self.healthFrac) * 2.0) or 1.0, self.healthFrac > 0.5 and 1.0 or (self.healthFrac * 2.0), 0.0, 1.0)
 	else
 		self.hpbar:SetStatusBarColor(0.75, 0.75, 0.75, 0.5) -- TODO: Expose to settings
 	end
@@ -288,7 +311,7 @@ function prototype:UpdatePowerBarColor(r, g, b)
 		self.powerbarColorG = g
 		self.powerbarColorB = b
 
-		if self.barActive then
+		if self:IsTrackingUnit() then
 			self.powerbar:SetStatusBarColor(r, g, b, 1.0)
 		else
 			self.powerbar:SetStatusBarColor(0.5 + (r * 0.5), 0.5 + (g * 0.5), 0.5 + (b * 0.5), 0.5)
@@ -298,6 +321,11 @@ end
 
 -- 
 function prototype:UpdateTrackedUnit(trackedUnit)
+	-- Activate if not active
+	if not self:IsActive() then
+		self:SetActive(true)
+	end
+
 	if self.currentUnit ~= trackedUnit:GetUnitGUID() then
 		-- Represented unit for this bar changed
 		self.currentUnit = trackedUnit:GetUnitGUID()
@@ -317,15 +345,16 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 		end
 	end
 
-	if self.barActive ~= trackedUnit:IsActive() then
-		self.barActive = trackedUnit:IsActive()
+	if self.unitTracked ~= trackedUnit:IsTracked() then
+		self.unitTracked = trackedUnit:IsTracked()
+		self:UpdateHPBarColor()
 
 		if self.haspowerbar then
 			self:UpdatePowerBarColor(self.powerbarColorR, self.powerbarColorG, self.powerbarColorB)
 		end
 	end
 
-	self:SetActiveClickBtn(self.barActive and trackedUnit.unitId or nil)
+	self:SetActiveClickBtn(self.unitTracked and trackedUnit.unitId or nil)
 
 	---- TODO MOVE DEATH TO UNIT
 	--if not self.unitDead and UnitIsDead(trackedUnit.unitId) then
@@ -342,7 +371,7 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 
 		self:SetHealth(trackedUnit.hpCurrent, trackedUnit.hpMax)
 
-		if self.barActive then
+		if self.unitTracked then
 			self:SetResource(trackedUnit.powerCurrent, trackedUnit.powerMax)
 		end
 	end

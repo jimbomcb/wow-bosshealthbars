@@ -52,9 +52,15 @@ end
 function TrackerTest:Tick()
 	self.tickCount = self.tickCount + 1
 
-	for k, v in pairs(self.trackedUnitsThisTick) do self.trackedUnitsThisTick[k] = nil end
+	-- Remove any relevant tracked units
+	for guid, unit in pairs(self.trackedUnits) do
+		if unit:ShouldRemove() then
+			self:RemoveTrackedUnit(guid)
+		end
+	end
 
-	-- Gather the Guids of all the relevant units
+	-- Gather the Guids of all the relevant tracked units this tick
+	for k, v in pairs(self.trackedUnitsThisTick) do self.trackedUnitsThisTick[k] = nil end
 	for _, unitId in pairs(unitIdList) do
 		local unitGuid = UnitGUID(unitId)
 		if unitGuid ~= nil and not self.trackedUnitsThisTick[unitGuid] then
@@ -63,11 +69,10 @@ function TrackerTest:Tick()
 			if self.encounterNPCs[npcId] ~= nil then
 				if self.encounterNPCPriority[npcId] == nil then error("No priority for npcId: " .. npcId) end
 				if self.trackedUnits[unitGuid] == nil then
-					local npcData = self.encounterNPCs[npcId]
+					local npcTrackingData = self.encounterNPCs[npcId]
 					local prio = self.encounterNPCPriority[npcId]
-					local showResources = npcData.resourceBar ~= nil and npcData.resourceBar or false
 
-					self.trackedUnits[unitGuid] = Private.TrackedUnit.New(unitGuid, unitId, npcId, prio, showResources)
+					self.trackedUnits[unitGuid] = Private.TrackedUnit.New(unitGuid, unitId, npcId, prio, npcTrackingData)
 					table.insert(self.trackedUnitsSorted, self.trackedUnits[unitGuid])
 					table.sort(self.trackedUnitsSorted, sortFunction)
 				else
@@ -93,4 +98,15 @@ end
 
 function TrackerTest:GetTrackedUnit(idx)
 	return self.trackedUnitsSorted[idx]
+end
+
+-- Called when a unit has expired, some units will be removed entirely after being untracked for N seconds
+function TrackerTest:RemoveTrackedUnit(unitGuid)
+	self.trackedUnits[unitGuid] = nil
+	for idx, unit in pairs(self.trackedUnitsSorted) do
+		if unit:GetUnitGUID() == unitGuid then
+			table.remove(self.trackedUnitsSorted, idx)
+			break
+		end
+	end
 end

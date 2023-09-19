@@ -9,14 +9,19 @@ local TrackedUnit = {
 TrackedUnit.__index = TrackedUnit
 Private.TrackedUnit = TrackedUnit
 
-function TrackedUnit.New(unitGUID, unitId, npcId, priority, showPower)
+function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 	local self = setmetatable({
 		unitGUID = unitGUID,
 		npcId = npcId,
 		priority = priority,
 		creationTime = GetTime(),
-		showPower = showPower,
+		showPower = npcTrackingData.resourceBar ~= nil and npcTrackingData.resourceBar ~= false,
+		expireAfterTrackingLoss = npcTrackingData.expireAfterTrackingLoss ~= nil and npcTrackingData.expireAfterTrackingLoss or nil,
 		alive = UnitIsDeadOrGhost(unitId) == false,
+		queuedExpiry = {
+			death = nil,
+			trackingLoss = nil
+		}
 	}, TrackedUnit)
 	self:UpdateLastSeen(unitId)
 	return self
@@ -41,11 +46,17 @@ function TrackedUnit:UpdateLastSeen(unitId)
 			self.powerR, self.powerG, self.powerB = GetPowerBarColor(self.powerType)
 		end
 	end
+
+	self:CancelExpiration("trackingLoss")
 end
 
 function TrackedUnit:OnInactive()
 	self.active = false
 	self.inactiveTime = GetTime()
+
+	if self.expireAfterTrackingLoss ~= nil then
+		self:QueueExpiration("trackingLoss", self.expireAfterTrackingLoss)
+	end
 end
 
 function TrackedUnit:GetPriority()
@@ -60,7 +71,7 @@ function TrackedUnit:GetUnitGUID()
 	return self.unitGUID
 end
 
-function TrackedUnit:IsActive()
+function TrackedUnit:IsTracked()
 	return self.active
 end
 
@@ -70,4 +81,29 @@ end
 
 function TrackedUnit:GetName()
 	return self.unitName
+end
+
+-- Return true to signal that this tracked unit should be cleaned up from the tracker entirely
+-- Usually due to expiration
+function TrackedUnit:ShouldRemove()
+	for expiryType, expiryTime in pairs(self.queuedExpiry) do
+		if expiryTime ~= nil and expiryTime < GetTime() then
+			Private:DEBUG_PRINT("Expired " .. self.unitName .. " due to " .. expiryType)
+			return true
+		end
+	end
+end
+
+-- Track an expiry time for this unit, if it's already queued then we'll just update the expiry time to the latest
+function TrackedUnit:QueueExpiration(expiryType, expiryLength)
+	Private:DEBUG_PRINT("Queued expiry for " .. self.unitName .. " due to " .. expiryType .. " in " .. expiryLength .. " seconds")
+	self.queuedExpiry[expiryType] = GetTime() + expiryLength
+end
+
+-- Track an expiry time for this unit, if it's already queued then we'll just update the expiry time to the latest
+function TrackedUnit:CancelExpiration(expiryType)
+	if self.queuedExpiry[expiryType] ~= nil then
+		Private:DEBUG_PRINT("Cancelling expiry for " .. self.unitName .. " due to " .. expiryType)
+		self.queuedExpiry[expiryType] = nil
+	end
 end
