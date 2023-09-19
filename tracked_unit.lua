@@ -21,12 +21,15 @@ function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 		queuedExpiry = {
 			death = nil,
 			trackingLoss = nil
-		}
+		},
+		auras = {},
+		activeAuras = 0
 	}, TrackedUnit)
 	self:UpdateLastSeen(unitId)
 	return self
 end
 
+local _, icon, duration, expirationTime, spellId, timeMod
 function TrackedUnit:UpdateLastSeen(unitId)
 	self.unitId = unitId
 	self.active = true
@@ -46,6 +49,33 @@ function TrackedUnit:UpdateLastSeen(unitId)
 			self.powerR, self.powerG, self.powerB = GetPowerBarColor(self.powerType)
 		end
 	end
+
+	-- Scan in any player applied harmful auras
+	self.activeAuras = 1
+	while true do
+		_, icon, _, _, duration, expirationTime, _, _, _, spellId, _, _, _, _, timeMod = UnitAura(unitId, self.activeAuras, "PLAYER|HARMFUL")
+		if spellId == nil then break end
+
+		if self.auras[self.activeAuras] == nil then
+			self.auras[self.activeAuras] = {
+				icon = icon,
+				duration = duration,
+				expirationTime = expirationTime,
+				spellId = spellId,
+				timeMod = timeMod
+			}
+		else
+			self.auras[self.activeAuras].icon = icon
+			self.auras[self.activeAuras].duration = duration
+			self.auras[self.activeAuras].expirationTime = expirationTime
+			self.auras[self.activeAuras].spellId = spellId
+			self.auras[self.activeAuras].timeMod = timeMod
+		end
+	
+		self.activeAuras = self.activeAuras + 1
+	end
+
+	self.activeAuras = self.activeAuras - 1 -- Final sum of auras is the last index we scanned minus one
 
 	self:CancelExpiration("trackingLoss")
 end
@@ -105,5 +135,23 @@ function TrackedUnit:CancelExpiration(expiryType)
 	if self.queuedExpiry[expiryType] ~= nil then
 		Private:DEBUG_PRINT("Cancelling expiry for " .. self.unitName .. " due to " .. expiryType)
 		self.queuedExpiry[expiryType] = nil
+	end
+end
+
+-- Clear any auras that have passed their expiration time, shifting any remaining auras down to fill the gap
+function TrackedUnit:TickAuras()
+	local now = GetTime()
+	local aura = nil
+
+	for i=1, self.activeAuras do
+		aura = self.auras[i]
+		if aura ~= nil and aura.expirationTime ~= nil and aura.expirationTime < now then
+			-- Shift all auras down one, overwriting the expired aura
+			for j=i, self.activeAuras - 1 do
+				self.auras[j] = self.auras[j + 1]
+			end
+			self.auras[self.activeAuras] = nil
+			self.activeAuras = self.activeAuras - 1
+		end
 	end
 end

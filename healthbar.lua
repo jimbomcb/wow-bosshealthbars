@@ -103,7 +103,7 @@ function HealthBar:New(idx, parent, width, height, resourceHeight)
 		local auraicon = auraframe:CreateTexture("Debuff" .. idx .. "AuraTex" .. i, "OVERLAY")
 		auraicon:SetAllPoints()
 		auraframe.icon = auraicon
-		
+
 		local auracooldown = CreateFrame("Cooldown", "Debuff" .. idx .. "AuraCooldown" .. i, auraframe)
 		auracooldown:SetAllPoints()
 		auracooldown:SetReverse(true)
@@ -158,7 +158,7 @@ function prototype:SetHealthFractionText(fraction, text)
 	self.healthFrac = fraction
 	self.hptext:SetText(text)
 	self.hpbar:SetValue(fraction)
-	
+
 	self:UpdateHPBarColor()
 end
 
@@ -349,7 +349,6 @@ function prototype:UpdatePowerBarColor(r, g, b)
 	end
 end
 
--- 
 function prototype:UpdateTrackedUnit(trackedUnit)
 	-- Activate if not active
 	if not self:IsActive() then
@@ -406,7 +405,36 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 		end
 	end
 
+	-- Aura updates
+	trackedUnit:TickAuras()
+	
+	for i=1, trackedUnit.activeAuras do
+		if i > self.auraIconsMax then
+			break
+		end
+
+		if i > self.auraIconsVisible and i <= self.auraIconsMax then
+			self.auraIcons[i]:Show()
+			self.auraIconsVisible = i
+		end
+
+		self.auraIcons[i].icon:SetTexture(trackedUnit.auras[i].icon)
+		self.auraIcons[i].cooldown:SetCooldown(trackedUnit.auras[i].expirationTime - trackedUnit.auras[i].duration,
+			trackedUnit.auras[i].duration,
+			trackedUnit.auras[i].timeMod)
+	end
+
+	-- Hide anything beyond the active aura list if we're scaling down
+	if self.auraIconsVisible > trackedUnit.activeAuras then
+		for i=trackedUnit.activeAuras + 1, self.auraIconsVisible do
+			self.auraIcons[i]:Hide()
+		end
+		self.auraIconsVisible = trackedUnit.activeAuras
+	end
+
+	if false then
 	if self.unitTracked then
+		-- Tracked unit aura updating
 		local auraIdx = 1
 		while true do
 			local name, icon, count, dispelType, duration, expirationTime, source, isStealable, nameplateShowPersonal,
@@ -419,7 +447,7 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 				self.auraIcons[auraIdx]:Show()
 				self.auraIconsVisible = auraIdx
 			end
-			
+
 			self.auraIcons[auraIdx].icon:SetTexture(icon)
 			self.auraIcons[auraIdx].cooldown:SetCooldown(expirationTime - duration, duration, timeMod)
 
@@ -433,6 +461,33 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 			end
 			self.auraIconsVisible = highestIndex
 		end
+	else
+		-- Iterate each auraicon, removing each entry (shifting any others across) that are expired
+		local initialVisible = self.auraIconsVisible
+
+		for i=1, self.auraIconsMax do
+			if i > self.auraIconsVisible then
+				break
+			end
+
+			if self.auraIcons[i].cooldown:GetCooldownDuration() <= 0 then
+				for j=i, self.auraIconsVisible - 1 do
+					self.auraIcons[j].icon:SetTexture(self.auraIcons[j + 1].icon:GetTexture())
+					self.auraIcons[j].cooldown:SetCooldown(self.auraIcons[j + 1].cooldown:GetCooldownTimes())
+				end
+
+				self.auraIconsVisible = self.auraIconsVisible - 1
+			else
+				self.auraIcons[i].cooldown:SetCooldown(self.auraIcons[i].cooldown:GetCooldownTimes())
+			end
+		end
+
+		if self.auraIconsVisible < initialVisible then
+			for i=self.auraIconsVisible + 1, initialVisible do
+				self.auraIcons[i]:Hide()
+			end
+		end
+	end
 	end
 end
 
