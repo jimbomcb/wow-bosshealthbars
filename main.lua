@@ -6,6 +6,7 @@
 -- TTK
 -- MaxBars (max per NPC?)
 -- Names can be unknown when picked up via nameplates
+-- Target on mouse down not mouse up
 local AddonName, Private = ...
 
 local BHB = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")

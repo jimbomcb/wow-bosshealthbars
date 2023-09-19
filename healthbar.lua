@@ -82,12 +82,36 @@ function HealthBar:New(idx, parent, width, height, resourceHeight)
 	}
 	frame.clickbtn = {}
 	for _, unitId in pairs(unitIdList) do
-		local btn = CreateFrame("Button", "ProtClickBtn"..unitId, overlay, "SecureActionButtonTemplate")
+		local btn = CreateFrame("Button", "ProtClickBtn"..unitId, frame.overlay, "SecureUnitButtonTemplate")
 		btn:SetAttribute("type", "target")
 		btn:SetAttribute("unit", unitId)
+		btn:RegisterForClicks("LeftButtonDown")
 		btn:SetPoint("BOTTOMLEFT", overlay)
 		btn:SetPoint("TOPRIGHT", overlay, "BOTTOMLEFT")
 		frame.clickbtn[unitId] = btn
+	end
+
+	frame.auraIcons = {}
+	frame.auraIconsVisible = 0
+	frame.auraIconsMax = 10
+	for i=1,frame.auraIconsMax do
+		local auraframe = CreateFrame("Frame", "Debuff" .. idx .. "AuraFrame" .. i, frame.overlay)
+		auraframe:SetSize(BHB:GetBarHeight(), BHB:GetBarHeight())
+		auraframe:SetPoint("RIGHT", frame.overlay, "LEFT", -((i - 1) * BHB:GetBarHeight()), 0)
+		auraframe:Hide()
+
+		local auraicon = auraframe:CreateTexture("Debuff" .. idx .. "AuraTex" .. i, "OVERLAY")
+		auraicon:SetAllPoints()
+		auraframe.icon = auraicon
+		
+		local auracooldown = CreateFrame("Cooldown", "Debuff" .. idx .. "AuraCooldown" .. i, auraframe)
+		auracooldown:SetAllPoints()
+		auracooldown:SetReverse(true)
+		auracooldown:SetSwipeTexture(0, 0, 0, 0, 0.75)
+		auracooldown:SetSwipeColor(0, 0, 0, 0.75)
+		auraframe.cooldown = auracooldown
+
+		frame.auraIcons[i] = auraframe
 	end
 
 	frame:OnMediaUpdate()
@@ -171,6 +195,12 @@ end
 function prototype:ResetBarVisualState()
 	self.bossname:SetText("Boss Health Bar #" .. self.barIndex)
 	self:SetHealthFractionText(1.0)
+
+	-- Reset aura icons
+	for i=1, self.auraIconsVisible do
+		self.auraIcons[i]:Hide()
+	end
+	self.auraIconsVisible = 0
 end
 
 --function prototype:GetUnitName()
@@ -375,15 +405,44 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 			self:SetResource(trackedUnit.powerCurrent, trackedUnit.powerMax)
 		end
 	end
+
+	if self.unitTracked then
+		local auraIdx = 1
+		while true do
+			local name, icon, count, dispelType, duration, expirationTime, source, isStealable, nameplateShowPersonal,
+				spellId, canApplyAura, isBossDebuff, castByPlayer, nameplateShowAll, timeMod = UnitAura(trackedUnit.unitId, auraIdx, "PLAYER|HARMFUL")
+			if spellId == nil then
+				break
+			end
+
+			if self.auraIconsVisible < auraIdx and auraIdx <= self.auraIconsMax then
+				self.auraIcons[auraIdx]:Show()
+				self.auraIconsVisible = auraIdx
+			end
+			
+			self.auraIcons[auraIdx].icon:SetTexture(icon)
+			self.auraIcons[auraIdx].cooldown:SetCooldown(expirationTime - duration, duration, timeMod)
+
+			auraIdx = auraIdx + 1
+		end
+
+		local highestIndex = auraIdx - 1
+		if self.auraIconsVisible > highestIndex then
+			for i=highestIndex + 1, self.auraIconsVisible do
+				self.auraIcons[i]:Hide()
+			end
+			self.auraIconsVisible = highestIndex
+		end
+	end
 end
 
 function prototype:SetActiveClickBtn(unitId)
 	if self.activeClickButtonUnitId == unitId then return end
 	self.activeClickButtonUnitId = unitId
-
+--
 	-- Enable button clicking for the relevant unit id only
 	if self.clickbtnactive ~= nil then self.clickbtnactive:SetPoint("TOPRIGHT", self.overlay, "BOTTOMLEFT", 0, 0) end
-
+--
 	if unitId ~= nil and self.clickbtn[unitId] ~= nil then
 		self.clickbtn[unitId]:SetPoint("BOTTOMLEFT", self.overlay, 0, 1)
 		self.clickbtn[unitId]:SetPoint("TOPRIGHT", self.overlay, 0, -1)
