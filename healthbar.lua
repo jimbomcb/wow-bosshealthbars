@@ -71,6 +71,7 @@ function HealthBar:New(idx, parent, width, height, resourceHeight)
 
 	-- Btns
 	local unitIdList = { "target", "targettarget", "focus", "focustarget", "mouseover", "mouseovertarget",
+		-- So... We can't use nameplates for secure unit targeting after the whole enemy grid thing. 
 		--[["nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
 		"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
 		"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
@@ -104,11 +105,12 @@ function HealthBar:New(idx, parent, width, height, resourceHeight)
 		auraicon:SetAllPoints()
 		auraframe.icon = auraicon
 
-		local auracooldown = CreateFrame("Cooldown", "Debuff" .. idx .. "AuraCooldown" .. i, auraframe)
+		local auracooldown = CreateFrame("Cooldown", "Debuff" .. idx .. "AuraCooldown" .. i, auraframe, "CooldownFrameTemplate")
 		auracooldown:SetAllPoints()
+
 		auracooldown:SetReverse(true)
-		auracooldown:SetSwipeTexture(0, 0, 0, 0, 0.75)
-		auracooldown:SetSwipeColor(0, 0, 0, 0.75)
+		auracooldown:SetHideCountdownNumbers(false)
+
 		auraframe.cooldown = auracooldown
 
 		frame.auraIcons[i] = auraframe
@@ -430,64 +432,6 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 			self.auraIcons[i]:Hide()
 		end
 		self.auraIconsVisible = trackedUnit.activeAuras
-	end
-
-	if false then
-	if self.unitTracked then
-		-- Tracked unit aura updating
-		local auraIdx = 1
-		while true do
-			local name, icon, count, dispelType, duration, expirationTime, source, isStealable, nameplateShowPersonal,
-				spellId, canApplyAura, isBossDebuff, castByPlayer, nameplateShowAll, timeMod = UnitAura(trackedUnit.unitId, auraIdx, "PLAYER|HARMFUL")
-			if spellId == nil then
-				break
-			end
-
-			if self.auraIconsVisible < auraIdx and auraIdx <= self.auraIconsMax then
-				self.auraIcons[auraIdx]:Show()
-				self.auraIconsVisible = auraIdx
-			end
-
-			self.auraIcons[auraIdx].icon:SetTexture(icon)
-			self.auraIcons[auraIdx].cooldown:SetCooldown(expirationTime - duration, duration, timeMod)
-
-			auraIdx = auraIdx + 1
-		end
-
-		local highestIndex = auraIdx - 1
-		if self.auraIconsVisible > highestIndex then
-			for i=highestIndex + 1, self.auraIconsVisible do
-				self.auraIcons[i]:Hide()
-			end
-			self.auraIconsVisible = highestIndex
-		end
-	else
-		-- Iterate each auraicon, removing each entry (shifting any others across) that are expired
-		local initialVisible = self.auraIconsVisible
-
-		for i=1, self.auraIconsMax do
-			if i > self.auraIconsVisible then
-				break
-			end
-
-			if self.auraIcons[i].cooldown:GetCooldownDuration() <= 0 then
-				for j=i, self.auraIconsVisible - 1 do
-					self.auraIcons[j].icon:SetTexture(self.auraIcons[j + 1].icon:GetTexture())
-					self.auraIcons[j].cooldown:SetCooldown(self.auraIcons[j + 1].cooldown:GetCooldownTimes())
-				end
-
-				self.auraIconsVisible = self.auraIconsVisible - 1
-			else
-				self.auraIcons[i].cooldown:SetCooldown(self.auraIcons[i].cooldown:GetCooldownTimes())
-			end
-		end
-
-		if self.auraIconsVisible < initialVisible then
-			for i=self.auraIconsVisible + 1, initialVisible do
-				self.auraIcons[i]:Hide()
-			end
-		end
-	end
 	end
 end
 

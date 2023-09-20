@@ -9,6 +9,17 @@ local TrackedUnit = {
 TrackedUnit.__index = TrackedUnit
 Private.TrackedUnit = TrackedUnit
 
+local ICON_LIST = {
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_1:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_2:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_3:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_4:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_5:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_6:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_7:0|t",
+	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:0|t",
+}
+
 function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 	local self = setmetatable({
 		unitGUID = unitGUID,
@@ -23,7 +34,8 @@ function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 			trackingLoss = nil
 		},
 		auras = {},
-		activeAuras = 0
+		activeAuras = 0,
+		marker = nil
 	}, TrackedUnit)
 	self:UpdateLastSeen(unitId)
 	return self
@@ -39,6 +51,7 @@ function TrackedUnit:UpdateLastSeen(unitId)
 	self.hpCurrent = UnitHealth(unitId)
 	self.hpMax = UnitHealthMax(unitId)
 	self.alive = UnitIsDeadOrGhost(unitId) == false
+	self.marker = GetRaidTargetIndex(unitId)
 
 	if self.showPower then
 		self.powerCurrent = UnitPower(unitId)
@@ -110,7 +123,8 @@ function TrackedUnit:IsAlive()
 end
 
 function TrackedUnit:GetName()
-	return self.unitName
+	if self.marker == nil or ICON_LIST[self.marker] == nil then return self.unitName end
+	return ICON_LIST[self.marker] .. self.unitName .. ICON_LIST[self.marker]
 end
 
 -- Return true to signal that this tracked unit should be cleaned up from the tracker entirely
