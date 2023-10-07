@@ -24,13 +24,10 @@ function Anchor:New()
 end
 
 function prototype:UpdateDragInput()
-
-	local lockMovement = BHB.config.profile.barLockState ~= "UNLOCKED"
-	local lockClickthrough = BHB.config.profile.barLockState == "LOCKED_CLICKTHROUGH"
-
-	if lockMovement == false or lockClickthrough == false then
-		self:SetMovable(lockMovement == false)
-		self:EnableMouse(lockClickthrough == false)
+	local locked = BHB:GetBarLocked()
+	if locked == false then
+		self:SetMovable(true)
+		self:EnableMouse(true)
 
 		self:SetScript("OnMouseDown", function(self, button)
 			if button == "LeftButton" and not self.isMoving then
@@ -51,6 +48,7 @@ function prototype:UpdateDragInput()
 	else
 		self:SetMovable(false)
 		self:EnableMouse(false)
+		
 		self:SetScript("OnMouseDown", nil)
 		self:SetScript("OnMouseUp", nil)
 	end

@@ -69,29 +69,6 @@ function HealthBar:New(idx, parent, width, height, resourceHeight)
 	hp:SetJustifyV("MIDDLE")
 	frame.hptext = hp
 
-	-- Btns
-	local unitIdList = { "target", "targettarget", "focus", "focustarget", "mouseover", "mouseovertarget",
-		-- So... We can't use nameplates for secure unit targeting after the whole enemy grid thing. 
-		--[["nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
-		"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
-		"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
-		"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40",]]
-		"raid1target", "raid2target", "raid3target", "raid4target", "raid5target", "raid6target", "raid7target", "raid8target", "raid9target", "raid10target",
-		"raid11target", "raid12target", "raid13target", "raid14target", "raid15target", "raid16target", "raid17target", "raid18target", "raid19target", "raid20target",
-		"raid21target", "raid22target", "raid23target", "raid24target", "raid25target", "raid26target", "raid27target", "raid28target", "raid29target", "raid30target",
-		"raid31target", "raid32target", "raid33target", "raid34target", "raid35target", "raid36target", "raid37target", "raid38target", "raid39target", "raid40target"
-	}
-	frame.clickbtn = {}
-	for _, unitId in pairs(unitIdList) do
-		local btn = CreateFrame("Button", "ProtClickBtn"..unitId, frame.overlay, "SecureUnitButtonTemplate")
-		btn:SetAttribute("type", "target")
-		btn:SetAttribute("unit", unitId)
-		btn:RegisterForClicks("LeftButtonDown")
-		btn:SetPoint("BOTTOMLEFT", overlay)
-		btn:SetPoint("TOPRIGHT", overlay, "BOTTOMLEFT")
-		frame.clickbtn[unitId] = btn
-	end
-
 	frame.auraIcons = {}
 	frame.auraIconsVisible = 0
 	frame.auraIconsMax = 10
@@ -385,8 +362,6 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 		end
 	end
 
-	self:SetActiveClickBtn(self.unitTracked and trackedUnit.unitId or nil)
-
 	---- TODO MOVE DEATH TO UNIT
 	--if not self.unitDead and UnitIsDead(trackedUnit.unitId) then
 	--	-- Died (but we somehow missed UNIT_DEATH)
@@ -405,6 +380,8 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 		if self.unitTracked then
 			self:SetResource(trackedUnit.powerCurrent, trackedUnit.powerMax)
 		end
+	else
+		self:SetHealthFractionText(0, "DEAD")
 	end
 
 	-- Aura updates
@@ -432,20 +409,6 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 			self.auraIcons[i]:Hide()
 		end
 		self.auraIconsVisible = trackedUnit.activeAuras
-	end
-end
-
-function prototype:SetActiveClickBtn(unitId)
-	if self.activeClickButtonUnitId == unitId then return end
-	self.activeClickButtonUnitId = unitId
---
-	-- Enable button clicking for the relevant unit id only
-	if self.clickbtnactive ~= nil then self.clickbtnactive:SetPoint("TOPRIGHT", self.overlay, "BOTTOMLEFT", 0, 0) end
---
-	if unitId ~= nil and self.clickbtn[unitId] ~= nil then
-		self.clickbtn[unitId]:SetPoint("BOTTOMLEFT", self.overlay, 0, 1)
-		self.clickbtn[unitId]:SetPoint("TOPRIGHT", self.overlay, 0, -1)
-		self.clickbtnactive = self.clickbtn[unitId]
 	end
 end
 

@@ -11,6 +11,9 @@ function TrackerBase:New(o)
 	return o
 end
 
+function TrackerBase:End()
+end
+
 function TrackerBase:Tick()
 end
 
@@ -20,4 +23,7 @@ end
 
 function TrackerBase:GetTrackedUnits()
 	return 0
+end
+
+function TrackerBase:OnUnitDied()
 end

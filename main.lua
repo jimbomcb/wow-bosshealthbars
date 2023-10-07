@@ -8,11 +8,19 @@
 -- Names can be unknown when picked up via nameplates
 -- Target on mouse down not mouse up
 -- Right-click focus?
+
+-- Release todo:
+-- Manabar for dwhisp
+-- Waiting for encounter?
+-- finalize settings
+-- old position migrate
+-- track unit specific auras, ie festergut stacks, rotface ooze stacks
+
 local AddonName, Private = ...
 
 local BHB = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
 Private.BHB = BHB
-BHB.VERSION = 5 -- Increment to reset DBs
+BHB.VERSION = 6 -- Increment to reset DBs
 local LSM = LibStub("LibSharedMedia-3.0")
 local FEATURE_BossUnits = false -- NOCHECKIN
 
@@ -25,8 +33,8 @@ end
 local defaultSettings = {
 	profile = {
 		ver = 0,
-		barLockState = "UNLOCKED", -- Valid: UNLOCKED, LOCKED, LOCKED_CLICKTHROUGH
-		hideAnchorWhenLocked = false,
+		barLocked = false,
+		hideAnchorWhenLocked = true,
 		scale = 1.0,
 		barWidth = 260,
 		barHeight = 22,
@@ -124,23 +132,32 @@ local options = {
 					type = "description",
 					order = 0,
 				},
-				barLockState = {
-					type = "select",
-					name = "Bar Lock",
-					desc = "How should the Boss Health Bar panel respond to mouse input?",
-					order = 0,
-					values = {
-						UNLOCKED = "Unlocked",
-						LOCKED = "Locked",
-						LOCKED_CLICKTHROUGH = "Locked & Click-through"
-					},
-					sorting = {
-						[1] = "UNLOCKED",
-						[2] = "LOCKED",
-						[3] = "LOCKED_CLICKTHROUGH"
-					},
-					get = "GetBarLockState",
-					set = "SetBarLockState",
+				--barLockState = {
+				--	type = "select",
+				--	name = "Bar Lock",
+				--	desc = "How should the Boss Health Bar panel respond to mouse input?",
+				--	order = 0,
+				--	values = {
+				--		UNLOCKED = "Unlocked",
+				--		LOCKED = "Locked",
+				--		LOCKED_CLICKTHROUGH = "Locked & Click-through"
+				--	},
+				--	sorting = {
+				--		[1] = "UNLOCKED",
+				--		[2] = "LOCKED",
+				--		[3] = "LOCKED_CLICKTHROUGH"
+				--	},
+				--	get = "GetBarLockState",
+				--	set = "SetBarLockState",
+				--	width = "full"
+				--},
+				barLocked = {
+					order = 1,
+					name = "Lock Bar Anchor",
+					desc = "Lock the bar anchor in place, preventing it from being moved.",
+					type = "toggle",
+					set = "SetBarLocked",
+					get = "GetBarLocked",
 					width = "full"
 				},
 				hideAnchorWhenLocked = {
@@ -344,6 +361,8 @@ function BHB:OnInitialize()
 	self.lockdown = InCombatLockdown() -- Are we in combat? Used to prevent certain actions
 	Private:DEBUG_PRINT("Combat lockdown: " .. tostring(self.lockdown))
 
+	self.boundCLEU = false
+
 	--self.currentStatus = ""
 	--self.statusColorR = 0; self.statusColorG = 1; self.statusColorB = 0; self.statusColorA = 1
 end
@@ -366,13 +385,13 @@ function BHB:OnEnable()
 	LSM.RegisterCallback(self, "LibSharedMedia_Registered", "OnMediaUpdate")
 
 	-- Try initialize the encounter monitor if we're not in combat and out of an encounter
-	if not InCombatLockdown() then
+	--if not InCombatLockdown() then
 		Private:DEBUG_PRINT("Not in active combat, initializing protected anchor bar")
 		self:InitializeAnchorBar()
-	else
-		Private:DEBUG_PRINT("Queued anchor init due to combat lock")
-		self.queuedAnchorInit = true
-	end
+	--else
+	--	Private:DEBUG_PRINT("Queued anchor init due to combat lock")
+	--	self.queuedAnchorInit = true
+	--end
 end
 
 function BHB:InitializeAnchorBar()
@@ -401,7 +420,6 @@ function BHB:WaitingForEncounter()
 	self.npcCount = {}
 
 	self:ResetBarPool()
-	self:UpdateAnchorVisibility()
 end
 
 
@@ -466,29 +484,6 @@ function BHB:OnConfigUpdated(source)
 	-- self:OnBarMediaUpdate()
 end
 
-function BHB:OnEncounterStart(_, encounterId, encounterName, difficultyID, groupSize)
-	--self:Print("BHB Dbg: Encounter " .. encounterId)
-	Private:DEBUG_PRINT("OnEncounterStart", _, encounterId, encounterName, difficultyID, groupSize)
-
-	local encounterData = Private.encounterMap[encounterId]
-	if encounterData == nil then
-		-- No encounter data, potentially untrackable encounter
-		-- Clear existing encounter bars and update the status to signal we can't track this		
-		-- local knownUntrackableName = BHB.knownMissingEncounters[encounterId]
-		-- if knownUntrackableName ~= nil then
-		-- 	self:WaitingForEncounter()
-		-- 	self:UpdateStatus(format("Unable to track %s", knownUntrackableName), 0.5, 0.5, 0.5, 1.0)
-		-- 	return
-		-- end
-		return
-	end
-
-	--self:InitForEncounter(encounterData)
-
-	-- Initialize the encounter tracker (if anchor exists, might not exist if we init in a restricted combat state)
-	self:BeginTrackingEncounter(encounterData)
-end
-
 function BHB:QueueEncounterTicking()
 	if self.encounterTick == nil then
 		Private:DEBUG_PRINT("Starting encounter tick")
@@ -516,15 +511,78 @@ end
 function BHB:ClearActiveEncounter()
 	if self.trackedEncounter == nil then return end
 	Private:DEBUG_PRINT("Clearing active encounter.")
+
+	-- One final tick
+	self:TickActiveEncounter()
+
+	self.trackedEncounter:End()
 	self.trackedEncounter = nil
+
+	if self.boundCLEU then
+		self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+		self.boundCLEU = false
+	end
 end
 
 function BHB:BeginTrackingEncounter(encounterData)
-	Private:DEBUG_PRINT("Tracking encounter: ", #encounterData.npcs .. " NPCs")
-	
+	-- Clear any possible previous encounter
+	if self.trackedEncounter ~= nil then self:ClearActiveEncounter() end
+
 	-- Initialize the encounter tracker
+	if self.trackedEncounter ~= nil then error("Already tracking an encounter") end
+
+	Private:DEBUG_PRINT("Tracking encounter: ", #encounterData.npcs .. " NPCs")
 	self.trackedEncounter = Private.TrackerTest:New(nil, encounterData)
 	self:QueueEncounterTicking()
+
+	-- Register for combat log events
+	if not self.boundCLEU then
+		self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnActiveEncounterCLEU")
+		self.boundCLEU = true
+	end
+end
+
+function BHB:OnEncounterStart(_, encounterId, encounterName, difficultyID, groupSize)
+	--self:Print("BHB Dbg: Encounter " .. encounterId)
+	Private:DEBUG_PRINT("OnEncounterStart", _, encounterId, encounterName, difficultyID, groupSize)
+
+	if WOW_PROJECT_ID == WOW_PROJECT_MAINLINE then
+		if Private.retailEncounterAliases[encounterId] ~= nil then
+			Private:DEBUG_PRINT("Remapping encounter ID: ", encounterId, " -> ", Private.retailEncounterAliases[encounterId])
+			encounterId = Private.retailEncounterAliases[encounterId]
+		end
+	end
+
+	local encounterData = Private.encounterMap[encounterId]
+	if encounterData == nil then
+		Private:DEBUG_PRINT("Unknown encounter ID: ", encounterId)
+
+		-- No encounter data, potentially untrackable encounter
+		-- Clear existing encounter bars and update the status to signal we can't track this		
+		-- local knownUntrackableName = BHB.knownMissingEncounters[encounterId]
+		-- if knownUntrackableName ~= nil then
+		-- 	self:WaitingForEncounter()
+		-- 	self:UpdateStatus(format("Unable to track %s", knownUntrackableName), 0.5, 0.5, 0.5, 1.0)
+		-- 	return
+		-- end
+		return
+	end
+
+	Private:DEBUG_PRINT("Encounter data found for: ", encounterId)
+
+	--self:InitForEncounter(encounterData)
+
+	-- Initialize the encounter tracker (if anchor exists, might not exist if we init in a restricted combat state)
+	self:BeginTrackingEncounter(encounterData)
+end
+
+-- Filter UNIT_DIED to the individual rows for their specific behaviour
+function BHB:OnActiveEncounterCLEU()
+	local ts, event, _, _, _, _, _, destGuid, _, _, _ = CombatLogGetCurrentEventInfo()
+	if event ~= "UNIT_DIED" then return end
+
+	if self.trackedEncounter == nil then return end
+	self.trackedEncounter:OnUnitDied(destGuid)
 end
 
 function BHB:OnEncounterEnd(_, encounterId, encounterName, difficultyId, groupSize, success)
@@ -573,6 +631,10 @@ function BHB:OnSlashCommand(input)
 			BHB.config.profile.debugMode = not BHB.config.profile.debugMode
 			self:Print("Debug mode: " .. tostring(BHB.config.profile.debugMode))
 		end
+	elseif input == "unlock" then
+		self:SetBarLocked(nil, false)
+	elseif input == "lock" then
+		self:SetBarLocked(nil, true)
 	else
 		self:Print("Unknown BHB command: " .. input)
 	end
@@ -582,18 +644,30 @@ function BHB:ShowContextMenu()
 	ToggleDropDownMenu(1, nil, self.contextMenu, "cursor", 3, -3)
 end
 
-function BHB:GetBarLockState()
-	return BHB.config.profile.barLockState
+function BHB:GetBarLocked()
+	return BHB.config.profile.barLocked
 end
 
-function BHB:SetBarLockState(info, value)
-	BHB.config.profile.barLockState = value
+function BHB:SetBarLocked(info, value)
+	BHB.config.profile.barLocked = value
 	self:SendMessage("BHB_LOCK_STATE_CHANGED")
+
+	if value then 
+		BHB:Print("Boss Health Bar locked, use /bhb unlock to unlock.")
+	else
+		BHB:Print("Boss Health Bar unlocked, anchor is now movable.")
+	end
 end
 
 function BHB:SetReverseOrder(info, state)
 	BHB.config.profile.reverseOrder = state
 	self:SendMessage("BHB_REVERSE_CHANGED")
+
+	if state then 
+		BHB:Print("Boss Health Bar reverse order enabled, bars will populate from bottom to top.")
+	else
+		BHB:Print("Boss Health Bar reverse order disabled, bars will populate top to bottom.")
+	end
 end
 
 function BHB:GetReverseOrder(info)
@@ -602,7 +676,12 @@ end
 
 function BHB:SetHideAnchorWhenLocked(info, state)
 	BHB.config.profile.hideAnchorWhenLocked = state
-	BHB:UpdateAnchorVisibility()
+
+	if state then 
+		BHB:Print("Boss Health Bar anchor will be hidden when locked.")
+	else
+		BHB:Print("Boss Health Bar anchor will be shown when locked.")
+	end
 end
 
 function BHB:GetHideAnchorWhenLocked(info)
@@ -792,27 +871,6 @@ function BHB:OnBarMediaUpdate()
 	end
 end
 
-function BHB:UpdateAnchorVisibility()
-	-- Always hide anchor when there's active encounter bars
-	if self:HasActiveBar() then
-		self.anchorBar:Hide()
-		return
-	end
-
-	-- Always show if there's no active encounter bars but we're in an encounter
-	if self.encounterActive then
-		self.anchorBar:Show()
-		return
-	end
-
-	-- Not in an encounter, so hide when locked if desired, otherwise show
-	if BHB.config.profile.barLockState ~= "UNLOCKED" and BHB.config.profile.hideAnchorWhenLocked then
-		self.anchorBar:Hide()
-	else
-		self.anchorBar:Show()
-	end
-end
-
 function DropdownInit_ContextMenu(frame, level, menuList)
 	if level == 1 then
 		--local barLocked = BHB:GetBarLockState() == "LOCKED"
@@ -822,16 +880,6 @@ function DropdownInit_ContextMenu(frame, level, menuList)
 		--info.arg1 = (barLocked and "UNLOCKED" or "LOCKED")
 		--info.checked = barLocked
 		--info.func = function(info, arg1) BHB:SetBarLockState(nil, arg1) end
-		--UIDropDownMenu_AddButton(info)
-		
-		--local info = UIDropDownMenu_CreateInfo()
-		--info.text = "Hide Anchor While Locked"
-		--info.arg1 = not BHB.config.profile.hideAnchorWhenLocked
-		--info.checked = BHB.config.profile.hideAnchorWhenLocked
-		--info.func = function(info, arg1)
-		--	BHB.config.profile.hideAnchorWhenLocked = arg1
-		--	BHB:UpdateAnchorVisibility()
-		--end
 		--UIDropDownMenu_AddButton(info)
 
 		local info = UIDropDownMenu_CreateInfo()
@@ -849,42 +897,24 @@ function DropdownInit_ContextMenu(frame, level, menuList)
 		info.func = function() BHB:WaitingForEncounter() end
 		info.opacity = 0.1
 		UIDropDownMenu_AddButton(info);]]--
-
-		-- Create a multi-select to pick the lock state
-		local lockDropdown = {}
-		lockDropdown.text = "Lock State"
-		lockDropdown.notCheckable = true
-		lockDropdown.hasArrow = true
-		lockDropdown.menuList = { meta="lockState", data = {
-			{
-				text = "Unlocked",
-				checked = function() return BHB:GetBarLockState() == "UNLOCKED" end,
-				func = function() 
-					BHB:SetBarLockState(nil, "UNLOCKED")
-					CloseDropDownMenus()
-					BHB:Print("Bars are now draggable.")
-				end
-			},
-			{
-				text = "Locked",
-				checked = function() return BHB:GetBarLockState() == "LOCKED" end,
-				func = function() 
-					BHB:SetBarLockState(nil, "LOCKED")
-					CloseDropDownMenus()
-					BHB:Print("Bars are now locked.")
-				end
-			},
-			{
-				text = "Locked + Clickthrough",
-				checked = function() return BHB:GetBarLockState() == "LOCKED_CLICKTHROUGH" end,
-				func = function() 
-					BHB:SetBarLockState(nil, "LOCKED_CLICKTHROUGH")
-					CloseDropDownMenus()
-					BHB:Print("Bars locked and click-through, edit via /bhb.")
-				end
-			}
-		} }
-		UIDropDownMenu_AddButton(lockDropdown)
+		
+		local info = UIDropDownMenu_CreateInfo()
+		info.text = "Hide Anchor While Locked"
+		info.arg1 = BHB:GetHideAnchorWhenLocked()
+		info.checked = BHB:GetHideAnchorWhenLocked()
+		info.func = function(info, arg1)
+			BHB:SetHideAnchorWhenLocked(nil, not BHB:GetHideAnchorWhenLocked())
+		end
+		UIDropDownMenu_AddButton(info)
+		
+		local info = UIDropDownMenu_CreateInfo()
+		info.text = "Lock Bar Anchor"
+		info.arg1 = BHB:GetBarLocked()
+		info.checked = BHB:GetBarLocked()
+		info.func = function(info, arg1)
+			BHB:SetBarLocked(nil, not BHB:GetBarLocked())
+		end
+		UIDropDownMenu_AddButton(info)
 		
 		local info = UIDropDownMenu_CreateInfo()
 		info.text = "Reverse Order"
@@ -961,13 +991,11 @@ end
 function BHB:EndActiveEncounter()
 	self.endEncounterDelay = nil
 
-	if self.boundCL then
-		self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-		self.boundCL = false
-	end
-
+	--if self.boundCL then
+	--	self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+	--	self.boundCL = false
+	--end
 	self.encounterActive = false
-	self:UpdateAnchorVisibility()
 
 	if self.encounterTick ~= nil then
 		self:DEBUG_PRINT("Stopping encounter tick")
@@ -991,16 +1019,6 @@ end
 -- Delayed ending that gives a brief window for the CLEU UNIT_DEATH to be received, it often doesn't otherwise
 function BHB:EndActiveEncounterDelayed()
 	self.endEncounterDelay = self:ScheduleTimer("EndActiveEncounter", 2.0)
-end
-
--- Filter UNIT_DIED to the individual rows for their specific behaviour
-function BHB:OnActiveEncounterCLEU()
-	local ts, event, _, _, _, _, _, destGuid, _, _, _ = CombatLogGetCurrentEventInfo()
-	if event ~= "UNIT_DIED" then return end
-	local trackedUnitBar = self.encounterInfo.trackedUnits[destGuid]
-	if trackedUnitBar ~= nil then
-		trackedUnitBar:OnDeath()
-	end
 end
 
 local targetedUnitArray = {}
@@ -1033,7 +1051,6 @@ function BHB:TickActiveEncounterOld()
 						newBar:Show()
 
 						self.encounterInfo.trackedUnits[npcGuid] = newBar
-						self:UpdateAnchorVisibility()
 						hadBarInvalidation = true
 					end
 				else
@@ -1085,7 +1102,6 @@ function BHB:TickActiveEncounterOld()
 					newBar:Show()
 
 					self.encounterInfo.trackedUnits[npcGuid] = newBar
-					self:UpdateAnchorVisibility()
 					hadBarInvalidation = true
 				end
 			else
@@ -1116,8 +1132,6 @@ function BHB:TickActiveEncounterOld()
 		for npcGuid, _ in pairs(expiredBars) do
 			self.encounterInfo.trackedUnits[npcGuid] = nil
 		end
-
-		self:UpdateAnchorVisibility()
 	end
 
 	if hadBarInvalidation then

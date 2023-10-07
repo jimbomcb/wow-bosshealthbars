@@ -28,6 +28,7 @@ function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 		creationTime = GetTime(),
 		showPower = npcTrackingData.resourceBar ~= nil and npcTrackingData.resourceBar ~= false,
 		expireAfterTrackingLoss = npcTrackingData.expireAfterTrackingLoss ~= nil and npcTrackingData.expireAfterTrackingLoss or nil,
+		expireAfterDeath = npcTrackingData.expireAfterDeath ~= nil and npcTrackingData.expireAfterDeath or nil,
 		alive = UnitIsDeadOrGhost(unitId) == false,
 		queuedExpiry = {
 			death = nil,
@@ -42,6 +43,7 @@ function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 end
 
 local _, icon, duration, expirationTime, spellId, timeMod
+local wasAlive = false
 function TrackedUnit:UpdateLastSeen(unitId)
 	self.unitId = unitId
 	self.active = true
@@ -50,7 +52,14 @@ function TrackedUnit:UpdateLastSeen(unitId)
 	self.unitName = UnitName(unitId)
 	self.hpCurrent = UnitHealth(unitId)
 	self.hpMax = UnitHealthMax(unitId)
-	self.alive = UnitIsDeadOrGhost(unitId) == false
+
+	-- Update live state
+	if self.alive and UnitIsDeadOrGhost(unitId) then
+		self:OnDied()
+	elseif not self.alive and not UnitIsDeadOrGhost(unitId) then
+		self:OnRevived()
+	end
+	
 	self.marker = GetRaidTargetIndex(unitId)
 
 	if self.showPower then
@@ -93,6 +102,7 @@ function TrackedUnit:UpdateLastSeen(unitId)
 	self:CancelExpiration("trackingLoss")
 end
 
+-- No longer active during an encounter
 function TrackedUnit:OnInactive()
 	self.active = false
 	self.inactiveTime = GetTime()
@@ -100,6 +110,11 @@ function TrackedUnit:OnInactive()
 	if self.expireAfterTrackingLoss ~= nil then
 		self:QueueExpiration("trackingLoss", self.expireAfterTrackingLoss)
 	end
+end
+
+-- Triggered on end of tracked encounter, no more ticks
+function TrackedUnit:OnEnd()
+	self.active = false
 end
 
 function TrackedUnit:GetPriority()
@@ -140,6 +155,7 @@ end
 
 -- Track an expiry time for this unit, if it's already queued then we'll just update the expiry time to the latest
 function TrackedUnit:QueueExpiration(expiryType, expiryLength)
+	if expiryLength == nil then return end
 	Private:DEBUG_PRINT("Queued expiry for " .. self.unitName .. " due to " .. expiryType .. " in " .. expiryLength .. " seconds")
 	self.queuedExpiry[expiryType] = GetTime() + expiryLength
 end
@@ -168,4 +184,32 @@ function TrackedUnit:TickAuras()
 			self.activeAuras = self.activeAuras - 1
 		end
 	end
+end
+
+-- Clear any cached marker, used when we know that this unit can no longer have this marker (because we see it elsewhere)
+function TrackedUnit:ClearMarker()
+	self.marker = nil
+end
+
+-- CLEU has got a UNIT_DEAD event for this specific tracked unit
+function TrackedUnit:OnDied()
+	if self.alive == false then return end
+
+	Private:DEBUG_PRINT("Unit died: " .. self.unitName .. " (" .. self.unitGUID .. ")")
+	self.alive = false
+	
+	if self.expireAfterDeath ~= nil then
+		self:QueueExpiration("death", self.expireAfterDeath)
+	end
+
+	-- Clear any tracked auras
+	self.auras = {}
+end
+
+-- Unit was dead but we're tracking them as alive again
+function TrackedUnit:OnRevived()
+	if self.alive then return end
+
+	Private:DEBUG_PRINT("Unit revived: " .. self.unitName .. " (" .. self.unitGUID .. ")")
+	self.alive = true
 end

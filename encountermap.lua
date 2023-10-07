@@ -7,6 +7,24 @@ local AddonName, Private = ...
 -- https://wowpedia.fandom.com/wiki/DungeonEncounterID 
 Private.knownMissingEncounters = { [1086] = "Faction Champions", [637] = "Faction Champions" }
 
+Private.retailEncounterAliases = {
+
+	-- ICC Classic to Retail (for testing)
+
+	[1101] = 845,
+	[1100] = 846,
+	[1099] = 847,
+	[1096] = 848,
+	[1097] = 849,
+	[1104] = 850,
+	[1102] = 851,
+	[1095] = 852,
+	[1103] = 853,
+	[1098] = 854,
+	[1105] = 855,
+	[1106] = 856,
+}
+
 Private.encounterMap = {
 	-- Classic IDs:
 	[744] = { npcs = { [1] = { id = 33113 } } }, -- Flame lev
@@ -116,12 +134,21 @@ Private.encounterMap = {
 
 	[845] = { npcs = { -- Lord Marrowgar
 		[1] = { id = 36612 }, -- Marrowgar
-		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Bone Spike
+		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 30.0 }, -- Bone Spike
 	}},
 	[846] = { npcs = { -- Lady Deathwhisper
-		[1] = { id = 36855, resourceBar = true }, -- Deathwhisper
+		[1] = { id = 36855, resourceBar = true, priority = 10 }, -- Deathwhisper
+		[2] = { id = 37890, expireAfterDeath = 1.0, expireAfterTrackingLoss = 10.0, priority = 5 }, -- Cult Fanatic
+		[3] = { id = 37949, expireAfterDeath = 1.0, expireAfterTrackingLoss = 10.0, priority = 5 }, -- Cult Adherent
 	}},
 	[847] = { npcs = { -- Gunship
+		}, bosses = {
+		boss1 = {
+			priority = 10
+		},
+		boss2 = {
+			priority = 5
+		},
 	}},
 	[848] = { npcs = { -- Deathbringer Saurfang
 		[1] = { id = 37813, resourceBar = true }, -- Saurfang
@@ -129,11 +156,11 @@ Private.encounterMap = {
 	}},
 	[849] = { npcs = { -- Festergut
 		[1] = { id = 36626 }, -- Festergut
-		--[2] = { id = 36899, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Big Ooze
-		--[3] = { id = 36897, expireAfterDeath = 1.0, expireAfterTrackingLoss = 1.0 }, -- Little Ooze
 	}},
 	[850] = { npcs = { -- Rotface
 		[1] = { id = 36627 }, -- Rotface
+		[2] = { id = 36899, expireAfterDeath = 0.0, expireAfterTrackingLoss = 10.0 }, -- Big Ooze
+		[3] = { id = 36897, expireAfterDeath = 0.0, expireAfterTrackingLoss = 10.0 }, -- Little Ooze
 	}},
 	[851] = { npcs = { -- Putricide
 		[1] = { id = 36678 }, -- Putricide
@@ -141,27 +168,43 @@ Private.encounterMap = {
 		[3] = { id = 37562, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Gas Cloud
 	}},
 	[852] = { npcs = { -- Blood Council
-		[1] = { id = 37972 }, -- Keleseth (L)
-		[2] = { id = 37970 }, -- Valanar (M)
-		[3] = { id = 37973 }, -- Taladram (R)
+			--[1] = { id = 37972 }, -- Keleseth (L)
+			--[2] = { id = 37970 }, -- Valanar (M)
+			--[3] = { id = 37973 }, -- Taladram (R)
+		}, bosses = {
+		boss1 = {
+			priority = 10
+		},
+		boss2 = {
+			priority = 9
+		},
+		boss3 = {
+			priority = 8
+		},
 	}},
 	[853] = { npcs = { -- Queen Lanathel
 		[1] = { id = 37955 }, -- Queen Lanathel
 	}},
 	[854] = { npcs = { -- Valithria
-		[1] = { id = 36789 }, -- Saurfang
+		[1] = { id = 36789 }, -- Valithria
 	}},
 	[855] = { npcs = { -- Sindragosa
 		[1] = { id = 36853 }, -- Sindragosa
 		--[2] = { id = 36980, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Ice Tomb
 	}},
 	[856] = { npcs = { -- Lich King
-		[1] = { id = 36597 }, -- Lich King
-		[2] = { id = 39217, expireAfterTrackingLoss = 10.0 }, -- Terenas Menethil
-		[3] = { id = 36824, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Spirit Warden
-		[4] = { id = 36609, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Val'kyr
-		[5] = { id = 36633, expireAfterDeath = 1.0, expireAfterTrackingLoss = 10.0 }, -- Ice Orb
+		[1] = { id = 36597, priority = 100 }, -- Lich King
+		[2] = { id = 39217, expireAfterTrackingLoss = 5.0, priority = 99 }, -- Terenas Menethil
+		[3] = { id = 36633, expireAfterDeath = 0.0, expireAfterTrackingLoss = 10.0, priority = 80 }, -- Ice Orb
+		[4] = { id = 36701, expireAfterDeath = 0.0, expireAfterTrackingLoss = 10.0, priority = 50 }, -- Raging Spirit
+		[5] = { id = 36609, expireAfterDeath = 0.0, expireAfterTrackingLoss = 10.0, priority = 80 }, -- Val'kyr
+		[7] = { id = 37698, expireAfterDeath = 0.0, expireAfterTrackingLoss = 10.0, priority = 20 }, -- Shambling Horror p1
 	}},
+
+	-- Test RFC
+	[431] = { 
+		[1] = { id = 11520 }
+	},
 
 	-- Debug encounter
 	[0] = {
@@ -235,6 +278,27 @@ Private.encounterMap = {
 			},
 			[14] = {
 				id = 32666
+			},
+			[15] = {
+				id = 32185,
+				expireAfterDeath = 10.0,
+				expireAfterTrackingLoss = 10.0,
+				priority = 	15
+			},
+			[16] = {
+				id = 32180,
+				expireAfterDeath = 10.0,
+				expireAfterTrackingLoss = 10.0,
+				priority = 15
+			},
+			[17] = {
+				id = 32186,
+				expireAfterDeath = 10.0,
+				expireAfterTrackingLoss = 10.0,
+				priority = 	20
+			},
+			[18] = {
+				id = 31304
 			},
 		}
 	},

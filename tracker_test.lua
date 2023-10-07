@@ -27,14 +27,21 @@ function TrackerTest:New(o, encounterData)
 		self.encounterNPCPriority[tostring(npc.id)] = npc.priority or (0 - idx) -- Either use the specified priority or fall back to 0 minus index, so that display order matches definition order
 	end
 
+	-- Mpa of encounter boss units to boss unit priority
+	self.encounterBosses = encounterData.bosses ~= nil and encounterData.bosses or {}
+	Private:DEBUG_PRINT("Encounter bosses: " .. #self.encounterBosses)
+	for bossUnit, bossPrio in pairs(self.encounterBosses) do
+		Private:DEBUG_PRINT("Boss " .. bossUnit, bossPrio)
+	end
+
 	return o
 end
 
 local unitIdList = { "target", "targettarget", "focus", "focustarget", "mouseover", "mouseovertarget",
-	--[["nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
+	"nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
 	"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
 	"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
-	"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40",]]
+	"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40",
 	"raid1target", "raid2target", "raid3target", "raid4target", "raid5target", "raid6target", "raid7target", "raid8target", "raid9target", "raid10target",
 	"raid11target", "raid12target", "raid13target", "raid14target", "raid15target", "raid16target", "raid17target", "raid18target", "raid19target", "raid20target",
 	"raid21target", "raid22target", "raid23target", "raid24target", "raid25target", "raid26target", "raid27target", "raid28target", "raid29target", "raid30target",
@@ -49,6 +56,18 @@ local sortFunction = function(a,b)
 	return a:GetCreationTime() < b:GetCreationTime()
 end
 
+function TrackerTest:End()
+	Private:DEBUG_PRINT("TrackerTest:End()")
+
+	-- Clear tracked state of any tracked units at time of end
+	for guid, unit in pairs(self.trackedUnits) do
+		unit:OnEnd()
+	end
+end
+
+local markersThisTick = {}
+local unitGuid
+local newUnits = false
 function TrackerTest:Tick()
 	self.tickCount = self.tickCount + 1
 
@@ -61,8 +80,31 @@ function TrackerTest:Tick()
 
 	-- Gather the Guids of all the relevant tracked units this tick
 	for k, v in pairs(self.trackedUnitsThisTick) do self.trackedUnitsThisTick[k] = nil end
+	for k, v in pairs(markersThisTick) do markersThisTick[k] = nil end
+
+	-- Iterate any relevant boss units
+	for bossUnit, bossTrackingData in pairs(self.encounterBosses) do
+		unitGuid = UnitGUID(bossUnit)
+		if unitGuid ~= nil and not self.trackedUnitsThisTick[unitGuid] then
+			if self.trackedUnits[unitGuid] == nil then
+				self.trackedUnits[unitGuid] = Private.TrackedUnit.New(unitGuid, bossUnit, 0, bossTrackingData.priority or 0, bossTrackingData)
+				table.insert(self.trackedUnitsSorted, self.trackedUnits[unitGuid])
+				newUnits = true
+			else
+				self.trackedUnits[unitGuid]:UpdateLastSeen(bossUnit)
+			end
+
+			if GetRaidTargetIndex(bossUnit) ~= nil then
+				markersThisTick[GetRaidTargetIndex(bossUnit)] = unitGuid
+			end
+
+			self.trackedUnitsThisTick[unitGuid] = true
+		end
+	end
+
+	-- Iterate all the raid targets, nameplates etc.
 	for _, unitId in pairs(unitIdList) do
-		local unitGuid = UnitGUID(unitId)
+		unitGuid = UnitGUID(unitId)
 		if unitGuid ~= nil and not self.trackedUnitsThisTick[unitGuid] then
 			local npcId = select(6, strsplit("-", unitGuid))
 
@@ -74,9 +116,13 @@ function TrackerTest:Tick()
 
 					self.trackedUnits[unitGuid] = Private.TrackedUnit.New(unitGuid, unitId, npcId, prio, npcTrackingData)
 					table.insert(self.trackedUnitsSorted, self.trackedUnits[unitGuid])
-					table.sort(self.trackedUnitsSorted, sortFunction)
+					newUnits = true
 				else
 					self.trackedUnits[unitGuid]:UpdateLastSeen(unitId)
+				end
+
+				if GetRaidTargetIndex(unitId) ~= nil then
+					markersThisTick[GetRaidTargetIndex(unitId)] = unitGuid
 				end
 			end
 
@@ -84,10 +130,25 @@ function TrackerTest:Tick()
 		end
 	end
 
+	-- Sort for any new additions	
+	if newUnits then
+		table.sort(self.trackedUnitsSorted, sortFunction)
+		newUnits = false
+	end
+
 	-- Clear flag for any units that are no longer actively tracked
 	for guid, _ in pairs(self.trackedUnits) do
 		if not self.trackedUnitsThisTick[guid] and self.trackedUnits[guid].active then
 			self.trackedUnits[guid]:OnInactive()
+		end
+	end
+
+	-- Do a post-processing scan that will remove the marker from any units that hve not been tracked this tick,
+	-- if that marker is now in use by a tracked unit.
+	for guid, _ in pairs(self.trackedUnits) do
+		local marker = self.trackedUnits[guid].marker
+		if marker ~= nil and markersThisTick[marker] ~= nil and markersThisTick[marker] ~= guid then
+			self.trackedUnits[guid]:ClearMarker()
 		end
 	end
 end
@@ -108,5 +169,12 @@ function TrackerTest:RemoveTrackedUnit(unitGuid)
 			table.remove(self.trackedUnitsSorted, idx)
 			break
 		end
+	end
+end
+
+-- Called when the CLEU has a UNIT_DIED event, pass to the active encounter if known to more quickly signal death
+function TrackerTest:OnUnitDied(unitGuid)
+	if self.trackedUnits[unitGuid] ~= nil then
+		self.trackedUnits[unitGuid]:OnDied()
 	end
 end
