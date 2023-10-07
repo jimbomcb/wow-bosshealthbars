@@ -59,6 +59,9 @@ function prototype:Initialize()
 	self.createdBars = 0
     self.maxBars = BHB:GetMaxBars()
 	self.regenRestoreQueued = {}
+	
+	-- Initial media settings
+	self:OnBarMediaUpdate()
 
     self:BHB_SIZE_CHANGED() -- Initial size
     self:BHB_MAXBARS_CHANGED()
@@ -129,6 +132,18 @@ function prototype:BHB_RESOURCE_SIZE_CHANGED()
 	end
 end
 
+function prototype:OnBarMediaUpdate()
+	self.fontMedia = BHB:GetFontMedia()
+	self.barTextureMedia = BHB:GetBarTextureMedia()
+	self.fontSize = BHB:GetFontSize()
+
+	for i=1, self.createdBars do
+		if self.bars[i] ~= nil then
+			self.bars[i]:SetBarMedia(self.fontMedia, self.fontSize, self.barTextureMedia)
+		end
+	end
+end
+
 function prototype:OnRegenDisabled()
 end
 
@@ -163,7 +178,7 @@ end
 
 function prototype:InitChildBar(i)
 	local offsetIdx = i - 1
-	local bar = BHB.HealthBar:New(i, self, BHB:GetBarWidth(), BHB:GetBarHeight(), 0)
+	local bar = BHB.HealthBar:New(i, self, BHB:GetBarWidth(), BHB:GetBarHeight(), 0, self.fontMedia, self.fontSize, self.barTextureMedia)
 	bar:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -BHB:GetBarHeight() * offsetIdx)
 	return bar
 end

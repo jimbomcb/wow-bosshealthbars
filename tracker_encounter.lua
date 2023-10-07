@@ -1,9 +1,9 @@
 local AddonName, Private = ...
 
-local TrackerTest = Private.TrackerBase:New()
-Private.TrackerTest = TrackerTest
+local TrackerEncounter = Private.TrackerBase:New()
+Private.TrackerEncounter = TrackerEncounter
 
-function TrackerTest:New(o, encounterData)
+function TrackerEncounter:New(o, encounterData)
 	o = o or Private.TrackerBase:New(o)
 	setmetatable(o, self)
 	self.__index = self
@@ -56,8 +56,8 @@ local sortFunction = function(a,b)
 	return a:GetCreationTime() < b:GetCreationTime()
 end
 
-function TrackerTest:End()
-	Private:DEBUG_PRINT("TrackerTest:End()")
+function TrackerEncounter:End()
+	Private:DEBUG_PRINT("TrackerEncounter:End()")
 
 	-- Clear tracked state of any tracked units at time of end
 	for guid, unit in pairs(self.trackedUnits) do
@@ -68,7 +68,7 @@ end
 local markersThisTick = {}
 local unitGuid
 local newUnits = false
-function TrackerTest:Tick()
+function TrackerEncounter:Tick()
 	self.tickCount = self.tickCount + 1
 
 	-- Remove any relevant tracked units
@@ -153,16 +153,16 @@ function TrackerTest:Tick()
 	end
 end
 
-function TrackerTest:GetTrackedUnits()
+function TrackerEncounter:GetTrackedUnits()
 	return #self.trackedUnitsSorted
 end
 
-function TrackerTest:GetTrackedUnit(idx)
+function TrackerEncounter:GetTrackedUnit(idx)
 	return self.trackedUnitsSorted[idx]
 end
 
 -- Called when a unit has expired, some units will be removed entirely after being untracked for N seconds
-function TrackerTest:RemoveTrackedUnit(unitGuid)
+function TrackerEncounter:RemoveTrackedUnit(unitGuid)
 	self.trackedUnits[unitGuid] = nil
 	for idx, unit in pairs(self.trackedUnitsSorted) do
 		if unit:GetUnitGUID() == unitGuid then
@@ -173,7 +173,7 @@ function TrackerTest:RemoveTrackedUnit(unitGuid)
 end
 
 -- Called when the CLEU has a UNIT_DIED event, pass to the active encounter if known to more quickly signal death
-function TrackerTest:OnUnitDied(unitGuid)
+function TrackerEncounter:OnUnitDied(unitGuid)
 	if self.trackedUnits[unitGuid] ~= nil then
 		self.trackedUnits[unitGuid]:OnDied()
 	end

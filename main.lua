@@ -20,9 +20,11 @@ local AddonName, Private = ...
 
 local BHB = LibStub("AceAddon-3.0"):NewAddon("BossHealthBar", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
 Private.BHB = BHB
-BHB.VERSION = 6 -- Increment to reset DBs
+BHB.VERSION = 1 -- Increment to reset DBs
+
 local LSM = LibStub("LibSharedMedia-3.0")
-local FEATURE_BossUnits = false -- NOCHECKIN
+LSM:Register("statusbar", "BHBFlat", [[Interface\AddOns\BossHealthBar\media\BHBFlat.tga]])
+LSM:Register("font", "ExpresswayBold", [[Interface\Addons\BossHealthBar\media\ExpBold.ttf]])
 
 Private.DEBUG_PRINT = function (info, ...)
 	if BHB.config.profile.debugMode then
@@ -43,13 +45,11 @@ local defaultSettings = {
 		resetBarsOnEncounterFinish = false,
 		showTargetMarkerIcons = true,
 		reverseOrder = false,
-		barTexutre = "Blizzard Raid Bar",
-		font = "Friz Quadrata TT",
-		fontSize = 12,
-		healthDisplayOption = "PercentageDetailed", -- Default: Percentage. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
-		debugMode = false,
-		leftOffset = 0.5,
-		topOffset = 0.8
+		barTexture = "BHBFlat",
+		font = "ExpresswayBold",
+		fontSize = 14,
+		healthDisplayOption = "PercentageDetailed", -- Default: PercentageDetailed. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
+		debugMode = true, -- TODO DISABLE
 	}
 }
 
@@ -132,25 +132,6 @@ local options = {
 					type = "description",
 					order = 0,
 				},
-				--barLockState = {
-				--	type = "select",
-				--	name = "Bar Lock",
-				--	desc = "How should the Boss Health Bar panel respond to mouse input?",
-				--	order = 0,
-				--	values = {
-				--		UNLOCKED = "Unlocked",
-				--		LOCKED = "Locked",
-				--		LOCKED_CLICKTHROUGH = "Locked & Click-through"
-				--	},
-				--	sorting = {
-				--		[1] = "UNLOCKED",
-				--		[2] = "LOCKED",
-				--		[3] = "LOCKED_CLICKTHROUGH"
-				--	},
-				--	get = "GetBarLockState",
-				--	set = "SetBarLockState",
-				--	width = "full"
-				--},
 				barLocked = {
 					order = 1,
 					name = "Lock Bar Anchor",
@@ -220,7 +201,7 @@ local options = {
 				maxBars = {
 					order = 11,
 					name = "Max Bars",
-					desc = "Max number of bars we can display. Default:  " .. tostring(defaultSettings.profile.maxBars),
+					desc = "Max number of bars we can display. 6 is recommended for ICC encounters. Default:  " .. tostring(defaultSettings.profile.maxBars),
 					type = "range",
 					min = 1,
 					softMax = 10,
@@ -278,16 +259,6 @@ local options = {
 	}
 }
 
-local unitIdList = { "target", "targettarget", "focus", "focustarget", "mouseover", "mouseovertarget", "nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
-	"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
-	"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
-	"nameplate31", "nameplate32", "nameplate33", "nameplate34", "nameplate35", "nameplate36", "nameplate37", "nameplate38", "nameplate39", "nameplate40",
-	"raid1target", "raid2target", "raid3target", "raid4target", "raid5target", "raid6target", "raid7target", "raid8target", "raid9target", "raid10target",
-	"raid11target", "raid12target", "raid13target", "raid14target", "raid15target", "raid16target", "raid17target", "raid18target", "raid19target", "raid20target",
-	"raid21target", "raid22target", "raid23target", "raid24target", "raid25target", "raid26target", "raid27target", "raid28target", "raid29target", "raid30target",
-	"raid31target", "raid32target", "raid33target", "raid34target", "raid35target", "raid36target", "raid37target", "raid38target", "raid39target", "raid40target"
-}
-
 local function GetIDFromGuid(guid)
 	if string.sub(guid, 0, 8) ~= "Creature" and string.sub(guid, 0, 7) ~= "Vehicle" then return nil end
 	-- Parse out NPC ID from [unitType]-0-[serverID]-[instanceID]-[zoneUID]-[ID]-[spawnUID]
@@ -317,8 +288,47 @@ function BHB:OnInitialize()
 			BHB:Print("Migrating BHB profile from version " .. tostring(self.config.profile.ver) .. " to " .. tostring(self.VERSION))
 		end
 
-		self.config:RegisterDefaults(defaultSettings)
-		self.config:ResetDB("Default")
+		-- Initial setup
+		if self.config.profile.ver == 0 then
+			-- Migrate to the new default fonts if using the old defaults
+			if self.config.profile.font == "Friz Quadrata TT" then
+				self.config.profile.font = "ExpresswayBold"
+			end
+
+			if self.config.profile.barTexture == "Blizzard Raid Bar" or self.config.profile.barTexture == "Blizzard" then
+				self.config.profile.barTexture = "BHBFlat"
+			end
+
+			-- Migrate old positions from rootX, rootY, rootPoint to the new anchorX, anchorY
+			if self.config.profile.rootX ~= nil and self.config.profile.rootY ~= nil then
+				BHB.config.profile.hasAnchorPosition = true
+				BHB.config.profile.anchorPoint = self.config.profile.rootPoint
+				BHB.config.profile.relativePoint = self.config.profile.rootPoint
+				BHB.config.profile.anchorX = self.config.profile.rootX
+				BHB.config.profile.anchorY = self.config.profile.rootY
+				Private:DEBUG_PRINT("Migrating from old rootX, rootY, rootPoint to new anchorX, anchorY, anchorPoint")
+			end
+
+			-- Increase font size if using old default
+			if self.config.profile.fontSize == 12 then
+				self.config.profile.fontSize = 14
+			end
+
+			-- Forcefully unlock, as we want to prompt the user to reposition us after the change to a fixed number of bars
+			self.config.profile.barLocked = false
+
+			-- Hide anchor when locked going forward
+			self.config.profile.hideAnchorWhenLocked = true
+
+			-- Use DetailedPercentage instead of Percentage if applied
+			if self.config.profile.healthDisplayOption == "Percentage" then
+				self.config.profile.healthDisplayOption = "PercentageDetailed"
+			end
+		end
+
+		--self.config:RegisterDefaults(defaultSettings)
+		--self.config:ResetDB("Default")
+
 		self.config.profile.ver = self.VERSION
 		self:OnConfigUpdated("reset")
 	end
@@ -349,24 +359,15 @@ function BHB:OnInitialize()
 	self:RegisterChatCommand("bhb", "OnSlashCommand")
 	self:RegisterChatCommand("bosshealthbars", "OnSlashCommand")
 
-	--self.baseFrame = CreateFrame("Frame", "BossHealthBar", UIParent)
-	--self.baseFrame:SetWidth(self:GetBarWidth())
-	--self.baseFrame:SetHeight(self:GetBarHeight())
-	--self.baseFrame:SetClampedToScreen(true)
-	--self.baseFrame:SetMovable(true)
---
-	--self.barPool = {} -- Pool of active bars given widgets are never destroyed
-	--self.boundCL = false -- Are we actively bound to the combat log events
-
+	LSM.RegisterCallback(self, "LibSharedMedia_Registered")
+	
 	self.lockdown = InCombatLockdown() -- Are we in combat? Used to prevent certain actions
 	Private:DEBUG_PRINT("Combat lockdown: " .. tostring(self.lockdown))
 
 	self.boundCLEU = false
-
-	--self.currentStatus = ""
-	--self.statusColorR = 0; self.statusColorG = 1; self.statusColorB = 0; self.statusColorA = 1
 end
 
+-- Triggered externally when the addon is activating, after initializing above
 function BHB:OnEnable()
 	-- Context menu
 	BHB.contextMenu = CreateFrame("FRAME", nil, self.anchorFrame, "UIDropDownMenuTemplate")
@@ -376,22 +377,14 @@ function BHB:OnEnable()
 		BHB.contextMenu:Hide()
 	end
 
-	if not FEATURE_BossUnits then
-		Private:DEBUG_PRINT("WARNING: BossUnits feature disabled, stock boss health bars will not be shown.")
-	end
-
-	-- Bind for media updates, any later-loading addons will call this
-	LSM.RegisterCallback(self, "LibSharedMedia_SetGlobal", "OnMediaUpdate")
-	LSM.RegisterCallback(self, "LibSharedMedia_Registered", "OnMediaUpdate")
-
 	-- Try initialize the encounter monitor if we're not in combat and out of an encounter
-	--if not InCombatLockdown() then
+	if not InCombatLockdown() then
 		Private:DEBUG_PRINT("Not in active combat, initializing protected anchor bar")
 		self:InitializeAnchorBar()
-	--else
-	--	Private:DEBUG_PRINT("Queued anchor init due to combat lock")
-	--	self.queuedAnchorInit = true
-	--end
+	else
+		Private:DEBUG_PRINT("Queued anchor init due to combat lock")
+		self.queuedAnchorInit = true
+	end
 end
 
 function BHB:InitializeAnchorBar()
@@ -400,88 +393,22 @@ function BHB:InitializeAnchorBar()
 	self:RestoreAnchorPosition(self.anchorFrame)
 end
 
-function BHB:OnMediaUpdate(event, mediatype, media)
+function BHB:LibSharedMedia_Registered(event, mediatype, media)
+	-- Update the anchor bar media if a relevant bar texture or font is getting registered
 	if 	(mediatype == LSM.MediaType.STATUSBAR and media == self:GetBarTexture()) or
 		(mediatype == LSM.MediaType.FONT and media == self:GetFont()) then
 		self:OnBarMediaUpdate()
 	end
 end
 
-function BHB:WaitingForEncounter()
-	self:UpdateStatus("Waiting for encounter...", 0, 0.5, 0, 1)
-
-	self.encounterInfo = {
-		trackedIDs = {},
-		currentTargets = {},
-		trackedUnits = {}
-	}
-	self.encounterActive = false
-	self.encounterSize = 25
-	self.npcCount = {}
-
-	self:ResetBarPool()
-end
-
-
-local anchorFontFlags = "OUTLINE"
-local anchorFontStatusShrink = 4
-
-function BHB:CreateAnchor()
-	local baseBar = CreateFrame("Frame", "BossHealthBarBase", self.baseFrame)
-	baseBar:SetAllPoints()
-
-	local tex = baseBar:CreateTexture()
-	tex:SetColorTexture(0, 0, 0, 1.0)
-	tex:SetAllPoints()
-	tex:SetAlpha(0.5)
-
-	local baseBarHealth = CreateFrame("StatusBar", nil, baseBar)
-	baseBarHealth:SetMinMaxValues(0,1)
-	baseBarHealth:SetValue(1.0)
-	baseBarHealth:SetPoint("TOPLEFT", baseBar, "TOPLEFT", 1, -1)
-	baseBarHealth:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -1, 1)
-	baseBarHealth:SetStatusBarTexture(self:GetBarTextureMedia())
-	baseBarHealth:SetStatusBarColor(self.statusColorR, self.statusColorG, self.statusColorB, self.statusColorA)
-	baseBar.healthBar = baseBarHealth
-
-	local overlay = CreateFrame("Frame", nil, baseBarHealth)
-	overlay:SetAllPoints(true)
-	overlay:SetFrameLevel(baseBarHealth:GetFrameLevel()+1)
-
-	local name = overlay:CreateFontString(nil, "OVERLAY")
-	name:SetPoint("TOPLEFT", baseBar, "TOPLEFT", 4, 0)
-	name:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
-	name:SetJustifyH("LEFT")
-	name:SetJustifyV("MIDDLE")
-	name:SetFont(self:GetFontMedia(), self:GetFontSize(), anchorFontFlags)
-	name:SetWordWrap(false)
-	name:SetText("Boss Health Bar")
-	baseBar.nameText = name
-
-	local status = overlay:CreateFontString(nil, "OVERLAY")
-	status:SetPoint("TOPLEFT", baseBar, "TOPRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
-	status:SetPoint("BOTTOMRIGHT", baseBar, "BOTTOMRIGHT", -6, 0)
-	status:SetFont(self:GetFontMedia(), self:GetFontSize() - anchorFontStatusShrink, anchorFontFlags)
-	status:SetNonSpaceWrap(true)
-	status:SetJustifyH("RIGHT")
-	status:SetJustifyV("MIDDLE")
-	status:SetText(self.currentStatus)
-	baseBar.statusText = status
-
-	return baseBar
-end
-
 function BHB:OnConfigUpdated(source)
 	Private:DEBUG_PRINT("OnConfigUpdated", source)
 	self:BHB_SIZE_CHANGED()
+	self:OnBarMediaUpdate()
+	-- JMCB TODO test switching between profiles and ensuring it inits properly
 
-	-- self:RestorePosition()
-
-	-- self:SetBarLockState(nil, self:GetBarLockState())
 	-- self:SetGrowUp(nil, self:GetGrowUp())
 	-- self:SetHideAnchorWhenLocked(nil, self:GetHideAnchorWhenLocked())
-	-- --self:OnSizeChanged()
-	-- self:OnBarMediaUpdate()
 end
 
 function BHB:QueueEncounterTicking()
@@ -508,6 +435,24 @@ function BHB:TickActiveEncounter()
 	end
 end
 
+function BHB:BeginTrackingEncounter(encounterData)
+	-- Clear any possible previous encounter
+	if self.trackedEncounter ~= nil then self:ClearActiveEncounter() end
+
+	-- Initialize the encounter tracker
+	if self.trackedEncounter ~= nil then error("Already tracking an encounter") end
+
+	Private:DEBUG_PRINT("Tracking encounter: ", #encounterData.npcs .. " NPCs")
+	self.trackedEncounter = Private.TrackerEncounter:New(nil, encounterData)
+	self:QueueEncounterTicking()
+
+	-- Register for combat log events (UNIT_DIED specifically)
+	if not self.boundCLEU then
+		self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnActiveEncounterCLEU")
+		self.boundCLEU = true
+	end
+end
+
 function BHB:ClearActiveEncounter()
 	if self.trackedEncounter == nil then return end
 	Private:DEBUG_PRINT("Clearing active encounter.")
@@ -521,24 +466,6 @@ function BHB:ClearActiveEncounter()
 	if self.boundCLEU then
 		self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 		self.boundCLEU = false
-	end
-end
-
-function BHB:BeginTrackingEncounter(encounterData)
-	-- Clear any possible previous encounter
-	if self.trackedEncounter ~= nil then self:ClearActiveEncounter() end
-
-	-- Initialize the encounter tracker
-	if self.trackedEncounter ~= nil then error("Already tracking an encounter") end
-
-	Private:DEBUG_PRINT("Tracking encounter: ", #encounterData.npcs .. " NPCs")
-	self.trackedEncounter = Private.TrackerTest:New(nil, encounterData)
-	self:QueueEncounterTicking()
-
-	-- Register for combat log events
-	if not self.boundCLEU then
-		self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnActiveEncounterCLEU")
-		self.boundCLEU = true
 	end
 end
 
@@ -738,30 +665,6 @@ function BHB:GetResourceBarHeight()
 	return BHB.config.profile.powerBarFraction
 end
 
-function BHB:OnSizeChanged()
-	---- Update relative frame sizes
-	--local saneW = max(10, self:GetBarWidth())
-	--local saneH = max(10, self:GetBarHeight())
-	--local saneResourceH = self:GetResourceBarHeight()
---
-	--self.baseFrame:SetWidth(saneW)
-	--self.baseFrame:SetHeight(saneH)
-	--self.anchorBar:SetWidth(10)
-	--self.anchorBar:SetHeight(saneH)
---
-	---- TODO: Can we better handle the layout of the frame to not require this? Still figuring out the frame setup	
-	----self.anchorBar.nameText:SetPoint("BOTTOMRIGHT", self.anchorBar, "BOTTOMRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
-	----self.anchorBar.statusText:SetPoint("TOPLEFT", self.anchorBar, "TOPRIGHT", - (floor(self.baseFrame:GetWidth() * 0.33)), 0)
---
-	---- Pooled bars
-	--for idx, bar in pairs(self.barPool) do
-	--	bar:UpdateSizes(saneW, saneH, saneResourceH)
-	--end
---
-	---- Re-sort given change in vertical offset
-	--self:SortActiveBars()
-end
-
 function BHB:BHB_SIZE_CHANGED()
 	if self.anchorFrame ~= nil then
 		self.anchorFrame:BHB_SIZE_CHANGED()
@@ -798,12 +701,6 @@ function BHB:BHB_RESOURCE_SIZE_CHANGED()
 	end
 end
 
-function BHB:SavePosition()
-end
-
-function BHB:RestorePosition()
-end
-
 function BHB:SaveAnchorPosition(anchorWidget)
 	-- Store the anchor point and relative offsets for restore on load
 	local anchorPoint, _, relativePoint, xOfs, yOfs = anchorWidget:GetPoint(1)
@@ -824,12 +721,12 @@ function BHB:RestoreAnchorPosition(anchorWidget)
 end
 
 function BHB:SetBarTexture(info, texture)
-	BHB.config.profile.barTexutre = texture
+	BHB.config.profile.barTexture = texture
 	self:OnBarMediaUpdate()
 end
 
 function BHB:GetBarTexture()
-	return BHB.config.profile.barTexutre
+	return BHB.config.profile.barTexture
 end
 
 function BHB:GetBarTextureMedia()
@@ -858,16 +755,22 @@ function BHB:GetFontSize(info)
 	return BHB.config.profile.fontSize
 end
 
+-- Called when bar or fonts change, we need to reapply some settings
 function BHB:OnBarMediaUpdate()
-	-- Update existing bars
-	local newBarTexture = self:GetBarTextureMedia()
-	local newFont = self:GetFontMedia()
-	self.anchorBar.healthBar:SetStatusBarTexture(newBarTexture)
-	self.anchorBar.nameText:SetFont(newFont, self:GetFontSize(), anchorFontFlags)
-	self.anchorBar.statusText:SetFont(newFont, math.max(1, self:GetFontSize() - anchorFontStatusShrink), anchorFontFlags)
+	-- Update existing bars JMCB TODO
+	-- local newBarTexture = self:GetBarTextureMedia()
+	-- local newFont = self:GetFontMedia()
+	-- self.anchorBar.healthBar:SetStatusBarTexture(newBarTexture)
+	-- self.anchorBar.nameText:SetFont(newFont, self:GetFontSize(), anchorFontFlags)
+	-- self.anchorBar.statusText:SetFont(newFont, math.max(1, self:GetFontSize() - anchorFontStatusShrink), anchorFontFlags)
+-- 
+	-- for idx, bar in pairs(self.barPool) do
+	-- 	bar:OnMediaUpdate()
+	-- end
 
-	for idx, bar in pairs(self.barPool) do
-		bar:OnMediaUpdate()
+	if self.anchorFrame ~= nil then
+		Private:DEBUG_PRINT("Triggering anchor OnBarMediaUpdate")
+		self.anchorFrame:OnBarMediaUpdate()
 	end
 end
 
@@ -940,291 +843,4 @@ function DropdownInit_ContextMenu(frame, level, menuList)
 			UIDropDownMenu_AddButton(info, level)
 		end
 	end
-end
-
-function BHB:InitForEncounter(encounterData) -- encounterData is null in the event we don't have an encounterMap entry
-	-- -- In the rare case that a new encounter starts while our old encounter has a pending shutdown, do cleanup
-	-- if self.encounterActive then
-	-- 	if self.endEncounterDelay ~= nil then self:CancelTimer(self.endEncounterDelay) end
-	-- 	self:EndActiveEncounter()
-	-- end
--- 
-	-- self:ResetBarPool()
--- 
-	-- -- Hook onto CLEU for UNIT_KILLED
-	-- if not self.boundCL then
-	-- 	self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnActiveEncounterCLEU")
-	-- 	self.boundCL = true
-	-- end
--- 
-	-- -- self:Print("BHB New Encounter: " .. tostring(encounterData))
-	-- self.encounterActive = true
-	-- self.encounterInfo = {
-	-- 	trackedIDs = {},
-	-- 	currentTargets = {},
-	-- 	trackedUnits = {}
-	-- }
-	-- self.npcCount = {}
--- 
-	-- self:UpdateStatus("Seeking targets...", 0.5, 0.5, 0.5, 1.0)
--- 
-	-- if encounterData ~= nil then
-	-- 	local npcIdx = 1
-	-- 	while encounterData.npcs[npcIdx] ~= nil do
-	-- 		local npcData = encounterData.npcs[npcIdx]
-	-- 		self.encounterInfo.trackedIDs[npcData.id] = npcData
-	-- 
-	-- 		-- If there's no specific priority, use the definition order 
-	-- 		if self.encounterInfo.trackedIDs[npcData.id].priority == nil then
-	-- 			self.encounterInfo.trackedIDs[npcData.id].priority = 0 - npcIdx
-	-- 		end
-	-- 
-	-- 		npcIdx = npcIdx + 1
-	-- 	end
-	-- end
--- 
-	-- self.encounterTick = self:ScheduleRepeaatingTimer("TickActiveEncounter", 1/8) -- Tick at 8hz for hp check (todo: expose to settings)
-	-- self:TickActiveEncounter()
-	-- self:UpdateAnchorVisibility()
-end
-
-function BHB:EndActiveEncounter()
-	self.endEncounterDelay = nil
-
-	--if self.boundCL then
-	--	self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-	--	self.boundCL = false
-	--end
-	self.encounterActive = false
-
-	if self.encounterTick ~= nil then
-		self:DEBUG_PRINT("Stopping encounter tick")
-		self:CancelTimer(self.encounterTick)
-		self.encounterTick = nil
-	end
-
-	-- Clear the tracked state of any still tracked bars
-	for _, npcBar in pairs(self.encounterInfo.trackedUnits) do
-		if not npcBar:HasExpired() and npcBar:IsTracked() then
-			npcBar:LostTracking()
-		end
-	end
-
-	-- Reset full state if user wants
-	if BHB.config.profile.resetBarsOnEncounterFinish then
-		self:WaitingForEncounter()
-	end
-end
-
--- Delayed ending that gives a brief window for the CLEU UNIT_DEATH to be received, it often doesn't otherwise
-function BHB:EndActiveEncounterDelayed()
-	self.endEncounterDelay = self:ScheduleTimer("EndActiveEncounter", 2.0)
-end
-
-local targetedUnitArray = {}
-function BHB:TickActiveEncounterOld()
-	local overallSeenNPCs = {} -- All NPC Guid to IDs that we saw this tick, anything not here is considered missing/untracked
-	local hadBarInvalidation = false
-
-	-- Maintain a set of bars for any "boss" units, a feature that was added in the ICC patch for things that aren't a unit like the gunship
-	local trackedBossGuids = {} -- The list of known boss NPCs
-	if select(4, GetBuildInfo()) > 30402 and FEATURE_BossUnits then
-		for i=1, 4 do
-			local unitId = "boss" .. i
-			local npcGuid, npcID = GetNPCInfo(unitId)
-			if npcGuid ~= nil and npcID ~= nil then
-				-- Ensure that a bar exists for this boss
-				if self.encounterInfo.trackedUnits[npcGuid] == nil then
-					-- Newly tracked unit
-					-- Don't newly track a dead NPC
-					if not UnitIsDead(unitId) then
-						overallSeenNPCs[npcGuid] = npcID
-
-						local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
-						self.npcCount[npcID] = npcCount + 1
-
-						-- Try and find the tracking settings for an NPC of this ID, but it could be nil for boss units that we don't have mapped above
-						local trackingSettings = self.encounterInfo.trackedIDs[npcID]
-						local isResourceBar = trackingSettings ~= nil and trackingSettings.resourceBar ~= nil and trackingSettings.resourceBar
-						local newBar = self:GetNewBar(isResourceBar)
-						newBar:Activate(npcGuid, unitId, trackingSettings, npcCount, i)
-						newBar:Show()
-
-						self.encounterInfo.trackedUnits[npcGuid] = newBar
-						hadBarInvalidation = true
-					end
-				else
-					-- Already tracked unit, update (if not updated this tick)
-					if (overallSeenNPCs[npcGuid] == nil) then
-						overallSeenNPCs[npcGuid] = npcID
-						self.encounterInfo.trackedUnits[npcGuid]:UpdateFrom(unitId)
-					end
-				end
-			end
-		end
-	end
-
-	-- Set targetedUnitArray to nil, repopulate any still valid targeted, focused, mouseover'd, raidtargeted NPCs
-	for k in pairs(targetedUnitArray) do
-		targetedUnitArray[k] = nil
-	end
-
-	local unitGuid = nil
-
-	-- Iterate all the possible UnitIDs in unitIdList
-	for _, unitId in pairs(unitIdList) do
-		unitGuid = GetNPCInfo(unitId)
-		if unitGuid ~= nil and targetedUnitArray[unitGuid] == nil then targetedUnitArray[unitGuid] = unitId end
-	end
-
-	-- Find desired NPCs to track from our target set
-	for npcGuid, sourceUnitId in pairs(targetedUnitArray) do
-		local npcID = GetIDFromGuid(npcGuid)
-		if npcID ~= nil and self.encounterInfo.trackedIDs[npcID] ~= nil then
-
-			-- NPC currently targeted by unitID 'v' is an npc of interest
-			if self.encounterInfo.trackedUnits[npcGuid] == nil then
-				-- Newly tracked unit
-				-- Don't newly track a dead NPC
-				if not UnitIsDead(sourceUnitId) then
-					overallSeenNPCs[npcGuid] = npcID
-
-					local npcCount = self.npcCount[npcID] ~= nil and self.npcCount[npcID] or 1
-					self.npcCount[npcID] = npcCount + 1
-
-					--if npcCount == 2 then
-						-- TODO: This is the second instance of an NPC with the same ID, find the previous bar and append #1
-					--end
-
-					local trackingSettings = self.encounterInfo.trackedIDs[npcID]
-					local newBar = self:GetNewBar(trackingSettings.resourceBar)
-					newBar:Activate(npcGuid, sourceUnitId, trackingSettings, npcCount, nil)
-					newBar:Show()
-
-					self.encounterInfo.trackedUnits[npcGuid] = newBar
-					hadBarInvalidation = true
-				end
-			else
-				-- Already tracked unit, update (if not updated this tick)
-				if (overallSeenNPCs[npcGuid] == nil) then
-					overallSeenNPCs[npcGuid] = npcID
-					self.encounterInfo.trackedUnits[npcGuid]:UpdateFrom(sourceUnitId)
-				end
-			end
-		end
-	end
-
-	local expiredBars = {}
-	for npcGuid, npcBar in pairs(self.encounterInfo.trackedUnits) do
-		if npcBar:HasExpired() then
-			-- Bar expiration
-			npcBar:Reset()
-			expiredBars[npcGuid] = true
-			hadBarInvalidation = true
-		elseif overallSeenNPCs[npcGuid] == nil and npcBar:IsTracked() then
-			-- Signal tracking lost for anything that wasn't present in this scan
-			npcBar:LostTracking()
-		end
-	end
-
-	if next(expiredBars) ~= nil then
-		-- todo: We've cleaned up bars, reorder
-		for npcGuid, _ in pairs(expiredBars) do
-			self.encounterInfo.trackedUnits[npcGuid] = nil
-		end
-	end
-
-	if hadBarInvalidation then
-		self:SortActiveBars()
-	end
-end
-
-function BHB:HasActiveBar()
-	--if not self.encounterActive then return false end -- Disabled, we don't invalidate this until the next encounter starts
-	if self.encounterInfo ~= nil then
-		for npcGuid, npcBar in pairs(self.encounterInfo.trackedUnits) do
-			if npcBar:IsActive() then
-				return true
-			end
-		end
-	end
-	return false
-end
-
-function BHB:GetNewBar(isResourceBar)
-	local lastIdx = 0
-	for idx, bar in pairs(self.barPool) do
-		if not bar:IsActive() then return bar end
-		lastIdx = idx
-	end
-
-	local baseBar =_G.BHB.HealthBar:New(self.baseFrame, self:GetBarWidth(), self:GetBarHeight(), self:GetResourceBarHeight())
-	self.barPool[lastIdx + 1] = baseBar
-	return baseBar
-end
-
-function BHB:SortActiveBars()
-	local activeBars = {}
-	local activeBarIdx = 1
-	for idx, bar in pairs(self.barPool) do
-		if bar:IsActive() then
-			activeBars[activeBarIdx] = bar
-			activeBarIdx = activeBarIdx + 1
-		end
-	end
-
-	table.sort(activeBars, function(a,b)
-		local prioA = a:GetPriority()
-		local prioB = b:GetPriority()
-		if prioA ~= prioB then return prioA > prioB end
-		-- Fall back to bar spawn order
-		return a:GetBarUID() < b:GetBarUID()
-	end)
-	
-	--local verticalOffset = 0
-	--if BHB.config.profile.reverseOrder then
-	--	for i = #activeBars, 1, -1 do
-	--		activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset))
-	--		verticalOffset = verticalOffset + activeBars[i]:GetHeight()
-	--	end
-	--else
-	--	for i = 1, #activeBars do
-	--		activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset))
-	--		verticalOffset = verticalOffset + activeBars[i]:GetHeight()
-	--	end
-	--end
-
-	local verticalOffset = 0
-	local heightScale = BHB.config.profile.growUp and -1 or 1
-	if BHB.config.profile.reverseOrder then
-		for i = #activeBars, 1, -1 do
-			activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset * heightScale))
-			verticalOffset = verticalOffset + activeBars[i]:GetHeight()
-		end
-	else
-		for i = 1, #activeBars do
-			activeBars[i]:SetPoint("TOPLEFT", 0, -floor(verticalOffset * heightScale))
-			verticalOffset = verticalOffset + activeBars[i]:GetHeight()
-		end
-	end
-
-	return verticalOffset
-end
-
-function BHB:UpdateStatus(msg, r, g, b, a)
-	self.currentStatus = msg
-	if self.anchorBar ~= nil then
-		self.anchorBar.statusText:SetText(msg)
-		if r ~= nil then
-			self.anchorBar.healthBar:SetStatusBarColor(r, g, b, a)
-		end
-	end
-end
-
-function BHB:ResetBarPool()
-	for idx, bar in pairs(self.barPool) do
-		bar:Hide()
-		bar:SetParent(nil)
-	end
-	self.barPool = {}
 end

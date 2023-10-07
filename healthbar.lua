@@ -2,7 +2,6 @@
 local AddonName, Private = ...
 local BHB = LibStub("AceAddon-3.0"):GetAddon("BossHealthBar")
 
-local AddonName, Private = ...
 local HealthBar,prototype = {},{}
 BHB.HealthBar = HealthBar
 
@@ -17,7 +16,7 @@ local ICON_LIST = {
 	"|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:",
 }
 
-function HealthBar:New(idx, parent, width, height, resourceHeight)
+function HealthBar:New(idx, parent, width, height, resourceHeight, fontMedia, fontSize, barMedia)
 	local frame = CreateFrame("Frame", "BossHealthBar", parent)
 	for k,v in pairs(prototype) do frame[k] = v end -- Copy in prototype methods
 
@@ -93,7 +92,7 @@ function HealthBar:New(idx, parent, width, height, resourceHeight)
 		frame.auraIcons[i] = auraframe
 	end
 
-	frame:OnMediaUpdate()
+	frame:SetBarMedia(fontMedia, fontSize, barMedia)
 	frame:Reset()
 	frame:UpdateResourceBarPoints()
 
@@ -182,126 +181,9 @@ function prototype:ResetBarVisualState()
 	self.auraIconsVisible = 0
 end
 
---function prototype:GetUnitName()
---	local unitName = self.unitNameBase
---
---	-- Wrap boss names in *'s
---	if self.bossId ~= nil then unitName = self.bossId .. ": " .. unitName end
---
---	-- Wrap in marker icons
---	local unitTexture = self.unitMarker ~= nil and ICON_LIST[self.unitMarker] .. "0|t" or nil
---	if unitTexture ~= nil then unitName = unitTexture .. unitName .. unitTexture end
---
---	return unitName
---end
-
-
---function prototype:UpdateFrom(unitId)
---	-- Is there a dev-only assert we can use? 
---	if UnitGUID(unitId) ~= self.targetGuid then
---		error("Mismatch, bar was for "..self.targetGuid.." but unit is targeting " .. UnitGUID(unitId))
---		return
---	end
---
---	-- If the unit ID is boss1, boss2, boss3, boss4, ensure we have the correct latest ID
---	if unitId == "boss1" or unitId == "boss2" or unitId == "boss3" or unitId == "boss4" then
---		local bossId = tonumber(string.sub(unitId, 5))
---		if bossId ~= nil then
---			self.bossId = bossId
---			self.bossname:SetText(self:GetUnitName())
---		end
---	end
---
---	local regainedTracking = self.isTracked == false
---	self.isTracked = true
---	self.lastSeenUnitId = unitId
---	self:CancelCleanup("lost")
---
---	local unitDead = UnitIsDead(unitId)
---	if not self.unitDead and unitDead then
---		-- Died (but we somehow missed UNIT_DEATH)
---		self:OnDeath()
---	elseif self.unitDead and not unitDead then
---		-- Revived?
---		self.unitDead = false
---		self:CancelCleanup("death")
---	end
---
---	-- Update raid target icons around the target name
---	local unitMarker = GetRaidTargetIndex(unitId)
---	if unitMarker ~= self.unitMarker and BHB.config.profile.showTargetMarkerIcons then
---		-- Unit marker changed, nil = no icon
---		self.unitMarker = unitMarker
---		self.bossname:SetText(self:GetUnitName())
---	end
---
---	if not self.unitDead then
---		local unitHP, unitHPMax = UnitHealth(unitId), UnitHealthMax(unitId)
---		self:SetHealth(unitHP, unitHPMax)
---
---		-- Update resource value if applicable
---		if self.haspowerbar then
---			--if regainedTracking then UpdatePowerBarColor(self) end
---
---			local powerCur, powerMax = UnitPower(unitId), UnitPowerMax(unitId)
---			self:SetResource(powerCur, powerMax)
---		end
---	end
---end
-
---function prototype:IsTracked()
---	return self.isTracked
---end
---
---function prototype:LostTracking()
---	self.isTracked = false
---	--UpdatePowerBarColor(self)
---
---	if self.trackingSettings ~= nil and self.trackingSettings.expireAfterTrackingLoss ~= nil then
---		self:ScheduleCleanup("lost", self.trackingSettings.expireAfterTrackingLoss)
---	end
---
---	-- Prefix health with a ≈ to indicate that it's an approximate value based on last sighting (and help distinguish untracked at a glance)
---	--local curText = self.hptext:GetText()
---	--if string.sub(curText, 0, 1) ~= "≈" then self.hptext:SetText("≈" .. curText) end
---end
-
---function prototype:OnDeath()
---	self.unitDead = true
---	self:SetHealthFractionText(0.0, "DEAD")
---
---	-- Some units should clean up their bar n seconds after death
---	if self.trackingSettings ~= nil and self.trackingSettings.expireAfterDeath ~= nil then
---		self:ScheduleCleanup("death", self.trackingSettings.expireAfterDeath)
---	end
---end
-
---function prototype:ScheduleCleanup(key, seconds)
---	local newExpireTime = GetTime() + seconds
---	if self.expiryTime[key] == nil or newExpireTime < self.expiryTime[key] then
---		self.expiryTime[key] = newExpireTime -- New time or sooner than prior
---	end
---end
---
---function prototype:CancelCleanup(key)
---	self.expiryTime[key] = nil
---end
---
---function prototype:HasExpired()
---	for k, v in pairs(self.expiryTime) do
---		if v ~= nil and GetTime() > v then
---			-- Hit an expiry
---			return true
---		end
---	end
---	return false
---end
-
-function prototype:OnMediaUpdate()
-	local fontMedia = BHB:GetFontMedia()
-	local fontSize = BHB:GetFontSize()
-	self.hpbar:SetStatusBarTexture(BHB:GetBarTextureMedia())
-	self.powerbar:SetStatusBarTexture(BHB:GetBarTextureMedia())
+function prototype:SetBarMedia(fontMedia, fontSize, barTexture)
+	self.hpbar:SetStatusBarTexture(barTexture)
+	self.powerbar:SetStatusBarTexture(barTexture)
 	self.bossname:SetFont(fontMedia, fontSize, "OUTLINE")
 	self.hptext:SetFont(fontMedia, fontSize, "OUTLINE")
 end
@@ -362,16 +244,6 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 		end
 	end
 
-	---- TODO MOVE DEATH TO UNIT
-	--if not self.unitDead and UnitIsDead(trackedUnit.unitId) then
-	--	-- Died (but we somehow missed UNIT_DEATH)
-	--	self:OnDeath()
-	--elseif self.unitDead and not UnitIsDead(trackedUnit.unitId) then
-	--	-- Revived?
-	--	self.unitDead = false
-	--	self:CancelCleanup("death")
-	--end
-
 	if trackedUnit:IsAlive() then
 		self.bossname:SetText(trackedUnit:GetName())
 
@@ -386,7 +258,7 @@ function prototype:UpdateTrackedUnit(trackedUnit)
 
 	-- Aura updates
 	trackedUnit:TickAuras()
-	
+
 	for i=1, trackedUnit.activeAuras do
 		if i > self.auraIconsMax then
 			break

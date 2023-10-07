@@ -17,5 +17,5 @@ anchor.lua
 encountermap.lua
 options.lua
 tracker_base.lua
-tracker_test.lua
+tracker_encounter.lua
 tracked_unit.lua
