@@ -38,16 +38,19 @@ function TrackedUnit.New(unitGUID, unitId, npcId, priority, npcTrackingData)
 		activeAuras = 0,
 		marker = nil
 	}, TrackedUnit)
-	self:UpdateLastSeen(unitId)
+	self:UpdateLastSeen(unitId, true)
 	return self
 end
 
 local _, icon, duration, expirationTime, spellId, timeMod
-local wasAlive = false
-function TrackedUnit:UpdateLastSeen(unitId)
+-- Called each tick with a potentially new unitId who has our data. isActive is true unless the encounter itself has ended and this is the final tick
+function TrackedUnit:UpdateLastSeen(unitId, isActive)
 	self.unitId = unitId
-	self.active = true
-	self.activeTime = GetTime()
+
+	if isActive then
+		self.active = true
+		self.activeTime = GetTime()
+	end
 
 	self.unitName = UnitName(unitId)
 	self.hpCurrent = UnitHealth(unitId)
@@ -115,6 +118,14 @@ end
 -- Triggered on end of tracked encounter, no more ticks
 function TrackedUnit:OnEnd()
 	self.active = false
+
+	-- Clear any other possible timers (other than death based ones)
+	for expiryType, expiryTime in pairs(self.queuedExpiry) do
+		if expiryType ~= "death" and expiryTime ~= nil then
+			Private:DEBUG_PRINT("Cancelling expiry for " .. self.unitName .. " due to " .. expiryType .. " on encounter end")
+			self.queuedExpiry[expiryType] = nil
+		end
+	end
 end
 
 function TrackedUnit:GetPriority()

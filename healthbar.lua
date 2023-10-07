@@ -48,7 +48,7 @@ function HealthBar:New(idx, parent, width, height, resourceHeight, fontMedia, fo
 	frame.powerbarHeight = BHB:GetResourceBarHeight() * height
 
 	local overlay = CreateFrame("Frame", nil, frame.hpbar)
-	overlay:SetAllPoints(true)
+	overlay:SetAllPoints()
 	overlay:SetFrameLevel(bosshealth:GetFrameLevel() + 5)
 	frame.overlay = overlay
 

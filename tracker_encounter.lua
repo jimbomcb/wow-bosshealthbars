@@ -15,6 +15,7 @@ function TrackerEncounter:New(o, encounterData)
 	self.trackedUnitsSorted = {}
 	self.trackedUnitsThisTick = {}
 	self.tickCount = 0
+	self.encounterActive = true
 
 	-- Build some maps for our encounter data for quicker runtime lookup
 	self.encounterNPCs = {}
@@ -37,7 +38,7 @@ function TrackerEncounter:New(o, encounterData)
 	return o
 end
 
-local unitIdList = { "target", "targettarget", "focus", "focustarget", "mouseover", "mouseovertarget",
+local unitIdList = { "target", "targettarget", "targettargettarget", "focus", "focustarget", "mouseover", "mouseovertarget",
 	"nameplate1", "nameplate2", "nameplate3", "nameplate4", "nameplate5", "nameplate6", "nameplate7", "nameplate8", "nameplate9", "nameplate10",
 	"nameplate11", "nameplate12", "nameplate13", "nameplate14", "nameplate15", "nameplate16", "nameplate17", "nameplate18", "nameplate19", "nameplate20",
 	"nameplate21", "nameplate22", "nameplate23", "nameplate24", "nameplate25", "nameplate26", "nameplate27", "nameplate28", "nameplate29", "nameplate30",
@@ -56,8 +57,9 @@ local sortFunction = function(a,b)
 	return a:GetCreationTime() < b:GetCreationTime()
 end
 
-function TrackerEncounter:End()
-	Private:DEBUG_PRINT("TrackerEncounter:End()")
+function TrackerEncounter:OnEncounterEnding()
+	Private:DEBUG_PRINT("TrackerEncounter:OnEncounterEnding()")
+	self.encounterActive = false
 
 	-- Clear tracked state of any tracked units at time of end
 	for guid, unit in pairs(self.trackedUnits) do
@@ -66,7 +68,7 @@ function TrackerEncounter:End()
 end
 
 local markersThisTick = {}
-local unitGuid
+local curUnitGuid
 local newUnits = false
 function TrackerEncounter:Tick()
 	self.tickCount = self.tickCount + 1
@@ -84,49 +86,49 @@ function TrackerEncounter:Tick()
 
 	-- Iterate any relevant boss units
 	for bossUnit, bossTrackingData in pairs(self.encounterBosses) do
-		unitGuid = UnitGUID(bossUnit)
-		if unitGuid ~= nil and not self.trackedUnitsThisTick[unitGuid] then
-			if self.trackedUnits[unitGuid] == nil then
-				self.trackedUnits[unitGuid] = Private.TrackedUnit.New(unitGuid, bossUnit, 0, bossTrackingData.priority or 0, bossTrackingData)
-				table.insert(self.trackedUnitsSorted, self.trackedUnits[unitGuid])
+		curUnitGuid = UnitGUID(bossUnit)
+		if curUnitGuid ~= nil and not self.trackedUnitsThisTick[curUnitGuid] then
+			if self.trackedUnits[curUnitGuid] == nil then
+				self.trackedUnits[curUnitGuid] = Private.TrackedUnit.New(curUnitGuid, bossUnit, 0, bossTrackingData.priority or 0, bossTrackingData)
+				table.insert(self.trackedUnitsSorted, self.trackedUnits[curUnitGuid])
 				newUnits = true
 			else
-				self.trackedUnits[unitGuid]:UpdateLastSeen(bossUnit)
+				self.trackedUnits[curUnitGuid]:UpdateLastSeen(bossUnit, self.encounterActive)
 			end
 
 			if GetRaidTargetIndex(bossUnit) ~= nil then
-				markersThisTick[GetRaidTargetIndex(bossUnit)] = unitGuid
+				markersThisTick[GetRaidTargetIndex(bossUnit)] = curUnitGuid
 			end
 
-			self.trackedUnitsThisTick[unitGuid] = true
+			self.trackedUnitsThisTick[curUnitGuid] = true
 		end
 	end
 
 	-- Iterate all the raid targets, nameplates etc.
 	for _, unitId in pairs(unitIdList) do
-		unitGuid = UnitGUID(unitId)
-		if unitGuid ~= nil and not self.trackedUnitsThisTick[unitGuid] then
-			local npcId = select(6, strsplit("-", unitGuid))
+		curUnitGuid = UnitGUID(unitId)
+		if curUnitGuid ~= nil and not self.trackedUnitsThisTick[curUnitGuid] then
+			local npcId = select(6, strsplit("-", curUnitGuid))
 
 			if self.encounterNPCs[npcId] ~= nil then
 				if self.encounterNPCPriority[npcId] == nil then error("No priority for npcId: " .. npcId) end
-				if self.trackedUnits[unitGuid] == nil then
+				if self.trackedUnits[curUnitGuid] == nil then
 					local npcTrackingData = self.encounterNPCs[npcId]
 					local prio = self.encounterNPCPriority[npcId]
 
-					self.trackedUnits[unitGuid] = Private.TrackedUnit.New(unitGuid, unitId, npcId, prio, npcTrackingData)
-					table.insert(self.trackedUnitsSorted, self.trackedUnits[unitGuid])
+					self.trackedUnits[curUnitGuid] = Private.TrackedUnit.New(curUnitGuid, unitId, npcId, prio, npcTrackingData)
+					table.insert(self.trackedUnitsSorted, self.trackedUnits[curUnitGuid])
 					newUnits = true
 				else
-					self.trackedUnits[unitGuid]:UpdateLastSeen(unitId)
+					self.trackedUnits[curUnitGuid]:UpdateLastSeen(unitId, self.encounterActive)
 				end
 
 				if GetRaidTargetIndex(unitId) ~= nil then
-					markersThisTick[GetRaidTargetIndex(unitId)] = unitGuid
+					markersThisTick[GetRaidTargetIndex(unitId)] = curUnitGuid
 				end
 			end
 
-			self.trackedUnitsThisTick[unitGuid] = true
+			self.trackedUnitsThisTick[curUnitGuid] = true
 		end
 	end
 

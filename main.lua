@@ -73,13 +73,8 @@ local options = {
 					name = "Clear Bars on Encounter End",
 					desc = "Clear any active health bars on encounter end? Otherwise health bars remain up until next encounter, which can be useful for determining your wipe percentage.",
 					type = "toggle",
-					set = function (info, val)
-						BHB.config.profile.resetBarsOnEncounterFinish = val
-						if val and not BHB.encounterActive then BHB:WaitingForEncounter() end -- We want the bars to hide after encounter, reset if we're not in encounter
-					end,
-					get = function (info)
-						return BHB.config.profile.resetBarsOnEncounterFinish
-					end,
+					set = "SetResetOnEncounterEnd",
+					get = "GetResetOnEncounterEnd",
 					width = "full"
 				},
 				showTargetMarkerIcons = {
@@ -355,6 +350,7 @@ function BHB:OnInitialize()
 	self:RegisterMessage("BHB_LOCK_STATE_CHANGED")
 	self:RegisterMessage("BHB_REVERSE_CHANGED")
 	self:RegisterMessage("BHB_RESOURCE_SIZE_CHANGED")
+	self:RegisterMessage("BHB_RESET")
 	
 	self:RegisterChatCommand("bhb", "OnSlashCommand")
 	self:RegisterChatCommand("bosshealthbars", "OnSlashCommand")
@@ -451,21 +447,32 @@ function BHB:BeginTrackingEncounter(encounterData)
 		self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnActiveEncounterCLEU")
 		self.boundCLEU = true
 	end
+
+	-- Signal anchor bar 
+	if self.anchorFrame ~= nil then
+		self.anchorFrame:OnEncounterStart(encounterData)
+	end
 end
 
 function BHB:ClearActiveEncounter()
 	if self.trackedEncounter == nil then return end
 	Private:DEBUG_PRINT("Clearing active encounter.")
 
-	-- One final tick
+	self.trackedEncounter:OnEncounterEnding()
+
+	-- One final tick to grab the dead state of units
 	self:TickActiveEncounter()
 
-	self.trackedEncounter:End()
 	self.trackedEncounter = nil
 
 	if self.boundCLEU then
 		self:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 		self.boundCLEU = false
+	end
+
+	-- Signal anchor bar
+	if self.anchorFrame ~= nil then
+		self.anchorFrame:OnEncounterEnd()
 	end
 end
 
@@ -665,6 +672,16 @@ function BHB:GetResourceBarHeight()
 	return BHB.config.profile.powerBarFraction
 end
 
+function BHB:SetResetOnEncounterEnd(_, reset)
+	BHB.config.profile.resetBarsOnEncounterFinish = reset
+	self:SendMessage("BHB_RESET")
+end
+
+function BHB:GetResetOnEncounterEnd()
+	if BHB.config.profile.resetBarsOnEncounterFinish == nil then return defaultSettings.profile.resetBarsOnEncounterFinish end
+	return BHB.config.profile.resetBarsOnEncounterFinish
+end
+
 function BHB:BHB_SIZE_CHANGED()
 	if self.anchorFrame ~= nil then
 		self.anchorFrame:BHB_SIZE_CHANGED()
@@ -698,6 +715,12 @@ end
 function BHB:BHB_RESOURCE_SIZE_CHANGED()
 	if self.anchorFrame ~= nil then
 		self.anchorFrame:BHB_RESOURCE_SIZE_CHANGED()
+	end
+end
+
+function BHB:BHB_RESET()
+	if self.anchorFrame ~= nil then
+		self.anchorFrame:ResetState()
 	end
 end
 

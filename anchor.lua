@@ -59,10 +59,11 @@ function prototype:Initialize()
 	self.createdBars = 0
     self.maxBars = BHB:GetMaxBars()
 	self.regenRestoreQueued = {}
+	self.inEncounter = false
 	
 	-- Initial media settings
 	self:OnBarMediaUpdate()
-
+	
     self:BHB_SIZE_CHANGED() -- Initial size
     self:BHB_MAXBARS_CHANGED()
 	self:BHB_SCALE_CHANGED() -- Initial scale
@@ -132,6 +133,16 @@ function prototype:BHB_RESOURCE_SIZE_CHANGED()
 	end
 end
 
+-- Called when we want to forcefully clear any current active state, resetting to a game boot state
+function prototype:ResetState()
+	for i=1, self.createdBars do
+		self.bars[i]:Reset()
+	end
+
+	-- Restore any relevant button visiblity state
+	self:UpdateBarVisibility()
+end
+
 function prototype:OnBarMediaUpdate()
 	self.fontMedia = BHB:GetFontMedia()
 	self.barTextureMedia = BHB:GetBarTextureMedia()
@@ -153,6 +164,24 @@ function prototype:OnRegenEnabled()
 		-- Execute the function named K on self
 		Private:DEBUG_PRINT("Restoring " .. k)
 		self[k](self)
+	end
+end
+
+function prototype:OnEncounterStart()
+	if self.inEncounter == true then return end
+	self.inEncounter = true
+
+	-- Hide any inactive buttons in the encounter
+	self:UpdateBarVisibility()
+end
+
+function prototype:OnEncounterEnd()
+	if self.inEncounter == false then return end
+	self.inEncounter = false
+
+	-- Optionally reset the encounter state on encounter end
+	if BHB:GetResetOnEncounterEnd() then
+		self:ResetState()
 	end
 end
 
@@ -194,9 +223,37 @@ function prototype:UpdateFromTracker(tracker)
 
 		if trackedUnit ~= nil then
 			bar:UpdateTrackedUnit(trackedUnit)
+
+			-- Ensure that any newly active bar is shown
+			if bar:IsShown() == false then 
+				bar:Show()
+			end
 		elseif bar:IsActive() then
 			Private:DEBUG_PRINT("No tracked unit for bar " .. i .. ", hiding bar.")
 			bar:Reset()
+
+			-- Hide the inactive button if we're in an ongoing encounter
+			if self.inEncounter == true then
+				bar:Hide()
+			end
+		end
+	end
+end
+
+function prototype:UpdateBarVisibility()
+	-- When we're in an encounter we always want to hide any empty healthbars
+	if self.inEncounter then
+		for i=1, self.maxBars do
+			if self.bars[i]:IsActive() == false and self.bars[i]:IsShown() then
+				self.bars[i]:Hide()
+			end
+		end
+	else
+		-- When we're not in an encounter we want to show all the bars
+		for i=1, self.maxBars do
+			if self.bars[i]:IsShown() == false then
+				self.bars[i]:Show()
+			end
 		end
 	end
 end
