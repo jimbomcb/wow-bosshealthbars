@@ -393,11 +393,6 @@ function BHB:OnConfigUpdated(source)
 		self:RestoreAnchorPosition(self.anchorFrame)
 	end
 	
-	-- JMCB TODO test switching between profiles and ensuring it inits properly
-
-	-- self:SetGrowUp(nil, self:GetGrowUp())
-	-- self:SetHideAnchorWhenLocked(nil, self:GetHideAnchorWhenLocked())
-	
 	if self.anchorFrame ~= nil then
 		self.anchorFrame:UpdateBarVisibility()
 	end
@@ -790,17 +785,6 @@ end
 
 -- Called when bar or fonts change, we need to reapply some settings
 function BHB:OnBarMediaUpdate()
-	-- Update existing bars JMCB TODO
-	-- local newBarTexture = self:GetBarTextureMedia()
-	-- local newFont = self:GetFontMedia()
-	-- self.anchorBar.healthBar:SetStatusBarTexture(newBarTexture)
-	-- self.anchorBar.nameText:SetFont(newFont, self:GetFontSize(), anchorFontFlags)
-	-- self.anchorBar.statusText:SetFont(newFont, math.max(1, self:GetFontSize() - anchorFontStatusShrink), anchorFontFlags)
--- 
-	-- for idx, bar in pairs(self.barPool) do
-	-- 	bar:OnMediaUpdate()
-	-- end
-
 	if self.anchorFrame ~= nil then
 		Private:DEBUG_PRINT("Triggering anchor OnBarMediaUpdate")
 		self.anchorFrame:OnBarMediaUpdate()

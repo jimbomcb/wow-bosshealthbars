@@ -183,6 +183,11 @@ function prototype:OnBarMediaUpdate()
 			self.bars[i]:SetBarMedia(self.fontMedia, self.fontSize, self.barTextureMedia)
 		end
 	end
+
+	-- Reapply to fallback text
+	if self.fallbackText ~= nil then
+		self.fallbackText:SetFont(self.fontMedia, self.fontSize, "OUTLINE")
+	end
 end
 
 function prototype:OnRegenDisabled()
