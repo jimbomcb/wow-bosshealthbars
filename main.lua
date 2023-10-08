@@ -1,19 +1,6 @@
--- Maybe TODO:
--- Clickable bars
--- Default to Clean/Expressway
+-- Todo:
 -- Targeted by N players
 -- See how DBM does auto marking of blood beasts to get them to add in the same order (bind onto SUMMON combat log event)
--- TTK
--- MaxBars (max per NPC?)
--- Names can be unknown when picked up via nameplates
--- Target on mouse down not mouse up
--- Right-click focus?
-
--- Release todo:
--- Manabar for dwhisp
--- Waiting for encounter?
--- finalize settings
--- old position migrate
 -- track unit specific auras, ie festergut stacks, rotface ooze stacks
 
 local AddonName, Private = ...
@@ -38,7 +25,7 @@ local defaultSettings = {
 		barLocked = false,
 		hideAnchorWhenLocked = true,
 		scale = 1.0,
-		barWidth = 260,
+		barWidth = 300,
 		barHeight = 22,
 		maxBars = 6,
 		powerBarFraction = 0.18,
@@ -49,7 +36,7 @@ local defaultSettings = {
 		font = "ExpresswayBold",
 		fontSize = 14,
 		healthDisplayOption = "PercentageDetailed", -- Default: PercentageDetailed. Options: Percentage, PercentageDetailed, Remaining, TotalRemaining
-		debugMode = true, -- TODO DISABLE
+		debugMode = false
 	}
 }
 
@@ -385,7 +372,6 @@ end
 
 function BHB:InitializeAnchorBar()
 	self.anchorFrame = BHB.Anchor:New()
-	self.anchorFrame:SetPoint("TOP", 0, -250)
 	self:RestoreAnchorPosition(self.anchorFrame)
 end
 
@@ -399,12 +385,29 @@ end
 
 function BHB:OnConfigUpdated(source)
 	Private:DEBUG_PRINT("OnConfigUpdated", source)
+
 	self:BHB_SIZE_CHANGED()
 	self:OnBarMediaUpdate()
+
+	if self.anchorFrame ~= nil then
+		self:RestoreAnchorPosition(self.anchorFrame)
+	end
+	
 	-- JMCB TODO test switching between profiles and ensuring it inits properly
 
 	-- self:SetGrowUp(nil, self:GetGrowUp())
 	-- self:SetHideAnchorWhenLocked(nil, self:GetHideAnchorWhenLocked())
+	
+	if self.anchorFrame ~= nil then
+		self.anchorFrame:UpdateBarVisibility()
+	end
+
+	self:SendMessage("BHB_LOCK_STATE_CHANGED")
+	self:SendMessage("BHB_REVERSE_CHANGED")
+	self:SendMessage("BHB_SCALE_CHANGED")
+	self:SendMessage("BHB_SIZE_CHANGED")
+	self:SendMessage("BHB_MAXBARS_CHANGED")
+	self:SendMessage("BHB_RESOURCE_SIZE_CHANGED")
 end
 
 function BHB:QueueEncounterTicking()
@@ -740,10 +743,13 @@ function BHB:SaveAnchorPosition(anchorWidget)
 end
 
 function BHB:RestoreAnchorPosition(anchorWidget)
+	anchorWidget:ClearAllPoints()
 	if BHB.config.profile.hasAnchorPosition then
-		anchorWidget:ClearAllPoints()
 		anchorWidget:SetPoint(BHB.config.profile.anchorPoint, UIParent, BHB.config.profile.relativePoint, BHB.config.profile.anchorX, BHB.config.profile.anchorY)
 		Private:DEBUG_PRINT("Restored anchor position", BHB.config.profile.anchorPoint, BHB.config.profile.relativePoint, BHB.config.profile.anchorX, BHB.config.profile.anchorY)
+	else
+		-- Default position
+		anchorWidget:SetPoint("TOP", 0, -250)
 	end
 end
 

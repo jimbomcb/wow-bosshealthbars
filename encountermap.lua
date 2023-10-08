@@ -190,7 +190,7 @@ Private.encounterMap = {
 	}},
 	[855] = { npcs = { -- Sindragosa
 		[1] = { id = 36853 }, -- Sindragosa
-		--[2] = { id = 36980, expireAfterDeath = 5.0, expireAfterTrackingLoss = 10.0 }, -- Ice Tomb
+		[2] = { id = 36980, expireAfterDeath = 3.0, expireAfterTrackingLoss = 10.0 }, -- Ice Tomb
 	}},
 	[856] = { npcs = { -- Lich King
 		[1] = { id = 36597, priority = 100 }, -- Lich King

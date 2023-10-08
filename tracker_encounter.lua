@@ -16,6 +16,7 @@ function TrackerEncounter:New(o, encounterData)
 	self.trackedUnitsThisTick = {}
 	self.tickCount = 0
 	self.encounterActive = true
+	self.removedUnits = {} -- The ongoing list of units that have been removed from tracking, to avoid re-adding a bar on death
 
 	-- Build some maps for our encounter data for quicker runtime lookup
 	self.encounterNPCs = {}
@@ -73,7 +74,7 @@ local newUnits = false
 function TrackerEncounter:Tick()
 	self.tickCount = self.tickCount + 1
 
-	-- Remove any relevant tracked units
+	-- Remove anything from trackedUnits that has ShouldRemove
 	for guid, unit in pairs(self.trackedUnits) do
 		if unit:ShouldRemove() then
 			self:RemoveTrackedUnit(guid)
@@ -87,11 +88,12 @@ function TrackerEncounter:Tick()
 	-- Iterate any relevant boss units
 	for bossUnit, bossTrackingData in pairs(self.encounterBosses) do
 		curUnitGuid = UnitGUID(bossUnit)
-		if curUnitGuid ~= nil and not self.trackedUnitsThisTick[curUnitGuid] then
+		if curUnitGuid ~= nil and not self.trackedUnitsThisTick[curUnitGuid] and self.removedUnits[curUnitGuid] == nil then
 			if self.trackedUnits[curUnitGuid] == nil then
 				self.trackedUnits[curUnitGuid] = Private.TrackedUnit.New(curUnitGuid, bossUnit, 0, bossTrackingData.priority or 0, bossTrackingData)
 				table.insert(self.trackedUnitsSorted, self.trackedUnits[curUnitGuid])
 				newUnits = true
+				Private:DEBUG_PRINT("Adding tracked unit " .. curUnitGuid .. " to tracked list")
 			else
 				self.trackedUnits[curUnitGuid]:UpdateLastSeen(bossUnit, self.encounterActive)
 			end
@@ -107,7 +109,7 @@ function TrackerEncounter:Tick()
 	-- Iterate all the raid targets, nameplates etc.
 	for _, unitId in pairs(unitIdList) do
 		curUnitGuid = UnitGUID(unitId)
-		if curUnitGuid ~= nil and not self.trackedUnitsThisTick[curUnitGuid] then
+		if curUnitGuid ~= nil and not self.trackedUnitsThisTick[curUnitGuid] and self.removedUnits[curUnitGuid] == nil then
 			local npcId = select(6, strsplit("-", curUnitGuid))
 
 			if self.encounterNPCs[npcId] ~= nil then
@@ -119,6 +121,7 @@ function TrackerEncounter:Tick()
 					self.trackedUnits[curUnitGuid] = Private.TrackedUnit.New(curUnitGuid, unitId, npcId, prio, npcTrackingData)
 					table.insert(self.trackedUnitsSorted, self.trackedUnits[curUnitGuid])
 					newUnits = true
+					Private:DEBUG_PRINT("Adding tracked unit " .. curUnitGuid .. " to tracked list")
 				else
 					self.trackedUnits[curUnitGuid]:UpdateLastSeen(unitId, self.encounterActive)
 				end
@@ -165,13 +168,17 @@ end
 
 -- Called when a unit has expired, some units will be removed entirely after being untracked for N seconds
 function TrackerEncounter:RemoveTrackedUnit(unitGuid)
+	Private:DEBUG_PRINT("Removing tracked unit " .. unitGuid)
+	self.removedUnits[unitGuid] = true
 	self.trackedUnits[unitGuid] = nil
 	for idx, unit in pairs(self.trackedUnitsSorted) do
 		if unit:GetUnitGUID() == unitGuid then
 			table.remove(self.trackedUnitsSorted, idx)
-			break
+			return
 		end
 	end
+
+	Private:DEBUG_PRINT("Failed to remove tracked unit " .. unitGuid .. ", not found in sorted list")
 end
 
 -- Called when the CLEU has a UNIT_DIED event, pass to the active encounter if known to more quickly signal death

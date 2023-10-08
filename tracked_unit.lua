@@ -1,6 +1,3 @@
--- TODO
--- Timers move here
-
 local AddonName, Private = ...
 
 local TrackedUnit = {
@@ -71,36 +68,36 @@ function TrackedUnit:UpdateLastSeen(unitId, isActive)
 		self.powerFraction = self.powerCurrent / self.powerMax
 		self.powerType, self.powerToken, self.powerR, self.powerG, self.powerB = UnitPowerType(unitId)
 		if self.powerR == nil then
-			self.powerR, self.powerG, self.powerB = GetPowerBarColor(self.powerType)
+			self.powerR, self.powerG, self.powerB = GetBHBPowerColors(self.powerType)
 		end
 	end
 
 	-- Scan in any player applied harmful auras
-	self.activeAuras = 1
-	while true do
-		_, icon, _, _, duration, expirationTime, _, _, _, spellId, _, _, _, _, timeMod = UnitAura(unitId, self.activeAuras, "PLAYER|HARMFUL")
-		if spellId == nil then break end
+	--self.activeAuras = 1
+	--while true do
+	--	_, icon, _, _, duration, expirationTime, _, _, _, spellId, _, _, _, _, timeMod = UnitAura(unitId, self.activeAuras, "PLAYER|HARMFUL")
+	--	if spellId == nil then break end
 
-		if self.auras[self.activeAuras] == nil then
-			self.auras[self.activeAuras] = {
-				icon = icon,
-				duration = duration,
-				expirationTime = expirationTime,
-				spellId = spellId,
-				timeMod = timeMod
-			}
-		else
-			self.auras[self.activeAuras].icon = icon
-			self.auras[self.activeAuras].duration = duration
-			self.auras[self.activeAuras].expirationTime = expirationTime
-			self.auras[self.activeAuras].spellId = spellId
-			self.auras[self.activeAuras].timeMod = timeMod
-		end
-	
-		self.activeAuras = self.activeAuras + 1
-	end
+	--	if self.auras[self.activeAuras] == nil then
+	--		self.auras[self.activeAuras] = {
+	--			icon = icon,
+	--			duration = duration,
+	--			expirationTime = expirationTime,
+	--			spellId = spellId,
+	--			timeMod = timeMod
+	--		}
+	--	else
+	--		self.auras[self.activeAuras].icon = icon
+	--		self.auras[self.activeAuras].duration = duration
+	--		self.auras[self.activeAuras].expirationTime = expirationTime
+	--		self.auras[self.activeAuras].spellId = spellId
+	--		self.auras[self.activeAuras].timeMod = timeMod
+	--	end
+	--
+	--	self.activeAuras = self.activeAuras + 1
+	--end
 
-	self.activeAuras = self.activeAuras - 1 -- Final sum of auras is the last index we scanned minus one
+	--self.activeAuras = self.activeAuras - 1 -- Final sum of auras is the last index we scanned minus one
 
 	self:CancelExpiration("trackingLoss")
 end
@@ -158,10 +155,13 @@ end
 function TrackedUnit:ShouldRemove()
 	for expiryType, expiryTime in pairs(self.queuedExpiry) do
 		if expiryTime ~= nil and expiryTime < GetTime() then
-			Private:DEBUG_PRINT("Expired " .. self.unitName .. " due to " .. expiryType)
+			Private:DEBUG_PRINT("Expiring " .. self.unitName .. " due to " .. expiryType)
+			self.queuedExpiry[expiryType] = nil
 			return true
 		end
 	end
+
+	return false
 end
 
 -- Track an expiry time for this unit, if it's already queued then we'll just update the expiry time to the latest
@@ -171,7 +171,6 @@ function TrackedUnit:QueueExpiration(expiryType, expiryLength)
 	self.queuedExpiry[expiryType] = GetTime() + expiryLength
 end
 
--- Track an expiry time for this unit, if it's already queued then we'll just update the expiry time to the latest
 function TrackedUnit:CancelExpiration(expiryType)
 	if self.queuedExpiry[expiryType] ~= nil then
 		Private:DEBUG_PRINT("Cancelling expiry for " .. self.unitName .. " due to " .. expiryType)
