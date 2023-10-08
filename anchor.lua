@@ -91,6 +91,9 @@ function prototype:Initialize()
 
 	-- Init the bars themselves
 	self:InitChildBars()
+
+	-- Initial visiblity state
+	self:UpdateBarVisibility()
 end
 
 function prototype:BHB_SIZE_CHANGED()
@@ -144,6 +147,9 @@ end
 
 function prototype:BHB_LOCK_STATE_CHANGED()
 	self:UpdateDragInput()
+
+	-- Update visiblity given anchor can want to hide when locked
+	self:UpdateBarVisibility()
 end
 
 function prototype:BHB_REVERSE_CHANGED()
@@ -292,10 +298,17 @@ function prototype:UpdateBarVisibility()
 			self.fallbackOverlay:Hide()
 		end
 	else
-		-- When we're not in an encounter we want to show all the bars
+		self.fallbackOverlay:Hide()
+
+		-- When we're not in an encounter we want to toggle the visibility of the bars based on the locked state
+		-- But only do this for any inactive bars, we want to keep active bars from the last encounter potentially
 		for i=1, self.maxBars do
-			if self.bars[i]:IsShown() == false then
-				self.bars[i]:Show()
+			if not self.bars[i]:IsActive() then
+				if BHB:GetBarLocked() and BHB:GetHideAnchorWhenLocked() then
+					self.bars[i]:Hide()
+				else
+					self.bars[i]:Show()
+				end
 			end
 		end
 	end

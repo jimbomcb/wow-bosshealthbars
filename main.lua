@@ -611,10 +611,14 @@ end
 function BHB:SetHideAnchorWhenLocked(info, state)
 	BHB.config.profile.hideAnchorWhenLocked = state
 
-	if state then 
+	if state then
 		BHB:Print("Boss Health Bar anchor will be hidden when locked.")
 	else
 		BHB:Print("Boss Health Bar anchor will be shown when locked.")
+	end
+
+	if self.anchorFrame ~= nil then
+		self.anchorFrame:UpdateBarVisibility()
 	end
 end
 
