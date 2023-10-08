@@ -68,6 +68,28 @@ function prototype:Initialize()
     self:BHB_MAXBARS_CHANGED()
 	self:BHB_SCALE_CHANGED() -- Initial scale
 
+	-- Create the fallback status bar/text when we have no active bars in an encounter
+	local fallbackOverlay = CreateFrame("Frame", nil, self)
+	fallbackOverlay:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+	fallbackOverlay:SetPoint("BOTTOMRIGHT", self, "TOPRIGHT", 0, -BHB:GetBarHeight())
+	fallbackOverlay:Hide()
+	self.fallbackOverlay = fallbackOverlay
+
+	local tex = fallbackOverlay:CreateTexture()
+	tex:SetColorTexture(0, 0, 0, 1.0)
+	tex:SetAllPoints()
+	tex:SetAlpha(0.5)
+
+	local fallbackText = fallbackOverlay:CreateFontString(nil, "OVERLAY")
+	fallbackText:SetAllPoints()
+	fallbackText:SetWordWrap(false)
+	fallbackText:SetJustifyH("MIDDLE")
+	fallbackText:SetJustifyV("MIDDLE")
+	fallbackText:SetFont(BHB:GetFontMedia(), BHB:GetFontSize(), "OUTLINE")
+	fallbackText:SetText("Finding boss...")
+	self.fallbackText = fallbackText
+
+	-- Init the bars themselves
 	self:InitChildBars()
 end
 
@@ -135,6 +157,8 @@ end
 
 -- Called when we want to forcefully clear any current active state, resetting to a game boot state
 function prototype:ResetState()
+	Private:DEBUG_PRINT("Resetting anchor state")
+
 	for i=1, self.createdBars do
 		self.bars[i]:Reset()
 	end
@@ -167,12 +191,12 @@ function prototype:OnRegenEnabled()
 	end
 end
 
-function prototype:OnEncounterStart()
-	if self.inEncounter == true then return end
+function prototype:OnEncounterStart(data)
+	if self.inEncounter == true then Private:DEBUG_PRINT("Ignoring duplicate OnEncounterStart") return end
 	self.inEncounter = true
 
-	-- Hide any inactive buttons in the encounter
-	self:UpdateBarVisibility()
+	Private:DEBUG_PRINT("OnEncounterStart()")
+	self:ResetState()
 end
 
 function prototype:OnEncounterEnd()
@@ -225,8 +249,11 @@ function prototype:UpdateFromTracker(tracker)
 			bar:UpdateTrackedUnit(trackedUnit)
 
 			-- Ensure that any newly active bar is shown
-			if bar:IsShown() == false then 
+			if bar:IsShown() == false then
 				bar:Show()
+
+				-- Ensure that overlay is hidden now that we have active bars
+				self.fallbackOverlay:Hide()
 			end
 		elseif bar:IsActive() then
 			Private:DEBUG_PRINT("No tracked unit for bar " .. i .. ", hiding bar.")
@@ -240,13 +267,29 @@ function prototype:UpdateFromTracker(tracker)
 	end
 end
 
+local hasActiveBars = false
 function prototype:UpdateBarVisibility()
+
+	Private:DEBUG_PRINT("UpdateBarVisibility()")
+
 	-- When we're in an encounter we always want to hide any empty healthbars
 	if self.inEncounter then
+		hasActiveBars = false
 		for i=1, self.maxBars do
-			if self.bars[i]:IsActive() == false and self.bars[i]:IsShown() then
+			if self.bars[i]:IsActive() then
+				hasActiveBars = true
+				Private:DEBUG_PRINT("Bar " .. i .. " is active")
+			elseif not self.bars[i]:IsActive() and self.bars[i]:IsShown() then
 				self.bars[i]:Hide()
 			end
+		end
+
+		if hasActiveBars == false then
+			Private:DEBUG_PRINT("Showing fallback overlay")
+			self.fallbackOverlay:Show()
+		else
+			Private:DEBUG_PRINT("Hiding fallback overlay")
+			self.fallbackOverlay:Hide()
 		end
 	else
 		-- When we're not in an encounter we want to show all the bars

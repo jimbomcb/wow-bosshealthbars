@@ -291,6 +291,16 @@ Private.encounterMap = {
 				expireAfterTrackingLoss = 10.0,
 				priority = 15
 			},
+			[20] = {
+				id = 26277,
+				expireAfterDeath = 10.0,
+				expireAfterTrackingLoss = 10.0,
+				priority = 15
+			},
+			[19] = {
+				id = 27925,
+				priority = 	999
+			},
 			[17] = {
 				id = 32186,
 				expireAfterDeath = 10.0,
