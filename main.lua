@@ -346,6 +346,14 @@ function BHB:OnInitialize()
 	self:RegisterChatCommand("bhb", "OnSlashCommand")
 	self:RegisterChatCommand("bosshealthbars", "OnSlashCommand")
 
+	-- Register tab completion
+	local tabCmds = { "lock", "unlock", "options" }
+	LibStub("AceTab-3.0"):RegisterTabCompletion("Boss Health Bars", nil, tabCmds, function(desctable)
+		desctable["options"] = "Open the settings panel."
+		desctable["lock"] = "Lock the boss health bar anchor."
+		desctable["unlock"] = "Unlock the boss health bar anchor."
+	end)
+
 	LSM.RegisterCallback(self, "LibSharedMedia_Registered")
 	
 	self.lockdown = InCombatLockdown() -- Are we in combat? Used to prevent certain actions
