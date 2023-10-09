@@ -131,6 +131,9 @@ function prototype:BHB_MAXBARS_CHANGED()
     self.maxBars = BHB:GetMaxBars()
 	self:SetHeight(BHB:GetBarHeight() * self.maxBars)
 	self:InitChildBars() -- Ensure we have any active bars
+
+	-- Also trigger a BHB_REVERSE_CHANGED to ensure that indicies are correct
+	self:BHB_REVERSE_CHANGED()
 end
 
 function prototype:BHB_SCALE_CHANGED()
@@ -153,6 +156,10 @@ function prototype:BHB_LOCK_STATE_CHANGED()
 end
 
 function prototype:BHB_REVERSE_CHANGED()
+	-- Update the per-bar indicies (visually reverse if sort order is reversed)
+	for i=1, self.createdBars do
+		self.bars[i]:SetBarIndex(BHB:GetReverseOrder() and self.maxBars - i + 1 or i)
+	end	
 end
 
 function prototype:BHB_RESOURCE_SIZE_CHANGED()
@@ -242,14 +249,12 @@ end
 
 function prototype:InitChildBar(i)
 	local offsetIdx = i - 1
-	local bar = BHB.HealthBar:New(i, self, BHB:GetBarWidth(), BHB:GetBarHeight(), 0, self.fontMedia, self.fontSize, self.barTextureMedia)
+	local bar = BHB.HealthBar:New(BHB:GetReverseOrder() and self.maxBars - i + 1 or i, self, BHB:GetBarWidth(), BHB:GetBarHeight(), 0, self.fontMedia, self.fontSize, self.barTextureMedia)
 	bar:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -BHB:GetBarHeight() * offsetIdx)
 	return bar
 end
 
 function prototype:UpdateFromTracker(tracker)
-	local trackedUnits = tracker:GetTrackedUnits()
-
 	-- Default order will be bar 1, 2, 3 etc. Reverse order will start from maxbar reverse.
 	for i=1, self.maxBars do
 		local trackedUnitIndex = BHB:GetReverseOrder() and self.maxBars - i + 1 or i

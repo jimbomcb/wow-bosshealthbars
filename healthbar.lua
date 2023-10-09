@@ -169,6 +169,16 @@ function prototype:IsTrackingUnit()
 	return self.unitTracked
 end
 
+-- Update the specific virtual index that this slot represents, ie in reverse bar 1 might represent the 6th element
+function prototype:SetBarIndex(newIdx)
+	self.barIndex = newIdx
+
+	-- Reset visual state if we're inactive (as the index is shown in the name)
+	if not self.barActive then
+		self:ResetBarVisualState()
+	end
+end
+
 -- Called on boot and when we want to reset the bar visual state
 function prototype:ResetBarVisualState()
 	self.bossname:SetText("Boss Health Bar #" .. self.barIndex)
