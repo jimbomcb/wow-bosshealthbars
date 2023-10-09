@@ -45,7 +45,7 @@ local options = {
 	handler = BHB,
 	type = "group",
 	args = {
-		generalsettings={
+		bhbgeneralsettings={
 			order = 0,
 			name = "General Settings",
 			type = "group",
@@ -104,7 +104,7 @@ local options = {
 				},
 			}
 		},
-		layoutsettings={
+		bhblayoutsettings={
 			order = 1,
 			name = "Bar Layout/Style",
 			type = "group",
@@ -319,12 +319,16 @@ function BHB:OnInitialize()
 		self:Print("DEBUG MODE ENABLED")
 	end
 
+	options.args.profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.config)
+	options.args.profiles.order = 200
+
+	-- Add dual-spec support
+	local LibDualSpec = LibStub('LibDualSpec-1.0')
+	LibDualSpec:EnhanceDatabase(self.config, "BossHealthBar")
+	LibDualSpec:EnhanceOptions(options.args.profiles, self.config)
+
 	LibStub("AceConfig-3.0"):RegisterOptionsTable("BossHealthBar", options)
 	self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("BossHealthBar", "Boss Health Bars")
-
-	local profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.config)
-	LibStub("AceConfig-3.0"):RegisterOptionsTable("BossHealthBar_Profiles", profiles)
-	LibStub("AceConfigDialog-3.0"):AddToBlizOptions("BossHealthBar_Profiles", "Profiles", "Boss Health Bars")
 
 	self:RegisterEvent("ENCOUNTER_START", "OnEncounterStart")
 	self:RegisterEvent("ENCOUNTER_END", "OnEncounterEnd")
