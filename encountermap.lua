@@ -135,6 +135,7 @@ Private.encounterMap = {
 	[845] = { npcs = { -- Lord Marrowgar
 		[1] = { id = 36612 }, -- Marrowgar
 		[2] = { id = 38711, expireAfterDeath = 5.0, expireAfterTrackingLoss = 30.0 }, -- Bone Spike
+		[3] = { id = 36619, expireAfterDeath = 5.0, expireAfterTrackingLoss = 30.0 }, -- Bone Spike (vehicle?)
 	}},
 	[846] = { npcs = { -- Lady Deathwhisper
 		[1] = { id = 36855, resourceBar = true, priority = 10 }, -- Deathwhisper
